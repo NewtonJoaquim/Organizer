@@ -119,9 +119,12 @@ gantt
 
 ---
 
-## 4. Backlog Detalhado de Tarefas (Formato Jira / Trello)
+## 4. Backlog Detalhado de Tarefas (Formato Jira / Trello / GitHub Projects)
 
-Abaixo estão detalhados os cartões de trabalho prontos para exportação e importação direta em ferramentas de gestão ágil como **Trello**, **Jira Software**, **Planner** ou **ClickUp**.
+Abaixo estão detalhados os cartões de trabalho prontos para exportação e acompanhamento em ferramentas de gestão ágil como **GitHub Projects**, **Jira Software**, **Trello** ou **Planner**.
+
+> 🔗 **Quadro Oficial de Gestão do Projeto:** [Backlog · @NewtonJoaquim's Organize Project](https://github.com/users/NewtonJoaquim/projects/1/views/1)  
+> Todas as tarefas abaixo estão estruturadas e organizadas por Milestones (Sprint 1, Sprint 2 e Sprint 3) com critérios de aceite formais (*Definition of Done*).
 
 ---
 
@@ -306,9 +309,9 @@ Abaixo estão detalhados os cartões de trabalho prontos para exportação e imp
 
 ---
 
-## 5. Tabela Consolidada para Importação Direta em Ferramentas Ágeis (Jira / Trello / CSV)
+## 5. Tabela Consolidada para Importação Direta em Ferramentas Ágeis (Jira / Trello / GitHub Projects / CSV)
 
-A Tabela 5.1 sintetiza o backlog completo com todos os campos necessários para importação em massa via planilha ou CSV nas plataformas de gestão de projetos:
+A Tabela 5.1 sintetiza o backlog completo com todos os campos necessários para rastreamento visual e importação em ferramentas de gestão ágil. O quadro interativo oficial pode ser acessado em [Backlog · @NewtonJoaquim's Organize Project](https://github.com/users/NewtonJoaquim/projects/1/views/1):
 
 ### Tabela 5.1: Matriz de Importação de Tasks do Backlog
 
