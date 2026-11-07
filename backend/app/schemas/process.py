@@ -19,20 +19,45 @@ class ProcessSpreadsheetRequest(BaseModel):
     sheet_name: str | None = Field(default=None, description="Nome da aba a processar. Se omitido, usa a ativa.")
     header_row_index: int | None = Field(
         default=None,
-        description="Índice da linha de cabeçalho (0-based). Se omitido, o algoritmo heurístico detecta automaticamente.",
+        description="Índice da linha de cabeçalho (0-based). Deixe null ou omita para detecção automática inteligente.",
+        json_schema_extra={"example": None},
     )
     sort_spec: SortSpec | None = Field(
         default=None,
-        description="Especificação formal de ordenação estável gerada pelo orquestrador semântico ou customizada.",
+        description="Especificação formal de ordenação gerada pelo orquestrador semântico (/api/semantic/map).",
     )
     column_mapping: dict[str, str] | None = Field(
         default=None,
-        description="Dicionário de de-para para renomeação canônica de colunas (original -> canônica).",
+        description="Dicionário opcional de de-para para renomeação canônica. Deixe null se quiser manter cabeçalhos originais.",
+        json_schema_extra={"example": None},
     )
     keep_original_headers: bool = Field(
         default=False,
-        description="Se True, preserva os nomes originais de colunas em vez de aplicar o de-para canônico.",
+        description="Se True, preserva os nomes originais de colunas da planilha em vez de aplicar column_mapping.",
     )
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "file_id": "uuid-do-arquivo",
+                "sheet_name": "ALFA",
+                "header_row_index": None,
+                "keep_original_headers": True,
+                "sort_spec": {
+                    "criteria": [
+                        {
+                            "indicator_columns": ["PP", "P", "M", "G", "GG", "XG", "XXG"],
+                            "direction": "ASC",
+                            "nulls_position": "last",
+                        }
+                    ],
+                    "raw_instruction": "Organize por tamanho das camisetas",
+                    "explanation": "Ordenação por tamanho",
+                },
+                "column_mapping": None,
+            }
+        }
+    }
 
 
 class ProcessSpreadsheetResponse(BaseModel):

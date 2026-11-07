@@ -335,6 +335,30 @@ class DeterministicEngineService:
         # 2. Leitura tabular em DataFrame
         df, sheet_name = self.read_spreadsheet(file_path, request.sheet_name, header_row)
 
+        # 2.1 Recuperação inteligente de cabeçalho:
+        # Se header_row_index foi enviado como 0 (muito comum como default de Swagger UI),
+        # mas as colunas lidas forem ruidosas ou não contiverem as colunas solicitadas para ordenação,
+        # o motor verifica se a heurística de detecção encontra o cabeçalho real.
+        if request.header_row_index is not None and request.sort_spec and request.sort_spec.criteria:
+            requested_targets: list[str] = []
+            for c in request.sort_spec.criteria:
+                if c.column:
+                    requested_targets.append(c.column.lower())
+                if c.indicator_columns:
+                    requested_targets.extend([ic.lower() for ic in c.indicator_columns])
+
+            df_cols_lower = [str(col).lower() for col in df.columns]
+            has_matching_col = any(t in df_cols_lower for t in requested_targets)
+
+            if not has_matching_col and requested_targets:
+                detection = header_detector.detect_header(file_path, sheet_name=request.sheet_name)
+                if detection.header_row_index != header_row:
+                    candidate_df, _ = self.read_spreadsheet(file_path, request.sheet_name, detection.header_row_index)
+                    candidate_cols_lower = [str(col).lower() for col in candidate_df.columns]
+                    if any(t in candidate_cols_lower for t in requested_targets):
+                        df = candidate_df
+                        header_row = detection.header_row_index
+
         if df.empty:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,

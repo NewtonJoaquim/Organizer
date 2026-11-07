@@ -274,6 +274,51 @@ def test_process_shirt_size_indicator_sort_matches_manual_ground_truth() -> None
     assert sorted_qts == manual_qts, f"Ordem divergente:\nProcessado: {sorted_qts}\nGabarito: {manual_qts}"
 
 
+def test_process_smart_header_recovery_when_row_zero_passed_by_mistake() -> None:
+    """
+    Valida a resiliência do motor: se o cliente/Swagger enviar header_row_index=0 por engano,
+    mas a linha 0 for um preâmbulo ruidoso (CAMISAS DE LANÇAMENTO) e não contiver as colunas
+    solicitadas no sort_spec, o motor deve recuperar automaticamente a linha 5 identificada
+    pelo detector heurístico, ordenando os dados com perfeição.
+    """
+    fixture_path = Path(__file__).parent / "fixtures" / "2_SERIE_NATAL.xlsx"
+    ground_truth_path = Path(__file__).parent / "fixtures" / "organizado_manualmente_2_SERIE_NATAL.xlsx"
+
+    file_id = "test-carlos-natal-recovery"
+    target_dir = file_service.temp_dir / file_id
+    target_dir.mkdir(parents=True, exist_ok=True)
+    import shutil
+    shutil.copy(fixture_path, target_dir / "2_SERIE_NATAL.xlsx")
+
+    # Envia header_row_index=0 explicitamente (como o Swagger preenche por padrão)
+    request = ProcessSpreadsheetRequest(
+        file_id=file_id,
+        sheet_name="ALFA",
+        header_row_index=0,
+        sort_spec=SortSpec(
+            criteria=[
+                SortCriterion(
+                    indicator_columns=["PP", "P", "M", "G", "GG", "XG", "XXG"],
+                    direction=SortDirection.ASC,
+                    nulls_position=NullsPosition.LAST,
+                )
+            ],
+            raw_instruction="Organize por tamanho das camisetas",
+            explanation="Ordenação por tamanho",
+        ),
+        keep_original_headers=True,
+    )
+
+    response = deterministic_engine.process(request)
+    assert response.integrity_audit.integrity_verified is True
+
+    output_path = file_service.temp_dir / response.processed_file_id / response.filename
+    df_sorted = pd.read_excel(output_path)
+    df_manual = pd.read_excel(ground_truth_path, header=1)
+
+    assert list(df_sorted["QT"]) == list(df_manual["QT"])
+
+
 def test_apply_stable_sort_agnostic_customer_survey_matrix() -> None:
     """Valida a ordenação agnóstica em matriz indicadora de pesquisa de satisfação (Escala Likert)."""
     df = pd.DataFrame({
