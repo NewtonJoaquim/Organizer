@@ -11,7 +11,8 @@ backend/
 │   │   ├── endpoints/
 │   │   │   ├── upload.py        # Endpoints POST /api/upload e DELETE /api/upload/{file_id}
 │   │   │   ├── inspect.py       # Endpoint POST /api/inspect/headers (Detecção Heurística)
-│   │   │   └── semantic.py      # Endpoint POST /api/semantic/map (Orquestrador LLM)
+│   │   │   ├── semantic.py      # Endpoint POST /api/semantic/map (Orquestrador LLM)
+│   │   │   └── process.py       # Endpoints POST /api/process e GET /api/process/download/{id}
 │   │   └── routes.py            # Roteador central e Healthcheck
 │   ├── core/
 │   │   ├── config.py            # Variáveis de ambiente e regras de negócio (Pydantic Settings)
@@ -19,11 +20,13 @@ backend/
 │   ├── schemas/
 │   │   ├── upload.py            # Modelos Pydantic de entrada e saída de upload
 │   │   ├── header.py            # Modelos Pydantic para resultados de detecção de cabeçalho
-│   │   └── semantic.py          # Modelos Pydantic (MappingProposal, SortSpec, SortCriterion)
+│   │   ├── semantic.py          # Modelos Pydantic (MappingProposal, SortSpec, SortCriterion)
+│   │   └── process.py           # Modelos Pydantic para processamento e auditoria de integridade
 │   ├── services/
 │   │   ├── file_service.py      # Gerenciamento de armazenamento temporário isolado e expurgo (TTL)
 │   │   ├── header_detector.py   # Algoritmo heurístico de detecção de cabeçalhos (RF-02 / RN-03)
 │   │   ├── semantic_orchestrator.py # Orquestrador semântico com validação LGPD e medição de tokens
+│   │   ├── processor.py         # Motor determinístico (mergesort, hash multiset, exportação openpyxl)
 │   │   └── llm/
 │   │       ├── base.py          # Interface abstrata BaseLLMProvider
 │   │       ├── mock_provider.py # Ontologia de 5 setores corporativos e parser de linguagem natural
@@ -39,7 +42,8 @@ backend/
 │   ├── conftest.py              # Fixtures com geração de planilhas .xlsx e .xls em memória
 │   ├── test_upload.py           # Suíte de testes automatizados de ingestão
 │   ├── test_header_detector.py  # Suíte de testes do algoritmo heurístico
-│   └── test_semantic_orchestrator.py # Suíte de testes de ontologia semântica e parser de comandos
+│   ├── test_semantic_orchestrator.py # Suíte de testes de ontologia semântica e parser de comandos
+│   └── test_processor.py        # Suíte de testes determinísticos, benchmark 10k e integridade RNF-02
 └── pyproject.toml               # Configuração do projeto e dependências
 ```
 
