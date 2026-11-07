@@ -200,7 +200,7 @@ def test_semantic_orchestrator_endpoint(client: TestClient) -> None:
 
 @pytest.mark.asyncio
 async def test_natural_language_parser_shirt_size_indicator_grid() -> None:
-    """Valida o parser ao solicitar 'ordenar por tamanho de camisa' em grade multi-coluna (Persona Carlos)."""
+    """Valida o parser agnóstico ao solicitar ordenação em matriz indicadora multi-coluna (Persona Carlos)."""
     columns = ["QT", "NOME DO ALUNO", "NOME DA CAMISA", "PP", "P", "M", "G", "GG", "XG", "XXG"]
     instruction = "ordenar por tamanho de camisa"
     request = SemanticOrchestratorRequest(columns=columns, user_instruction=instruction)
@@ -212,17 +212,18 @@ async def test_natural_language_parser_shirt_size_indicator_grid() -> None:
     assert proposal.sort_spec is not None
 
     criteria = proposal.sort_spec.criteria
-    assert len(criteria) == 7
+    assert len(criteria) == 1
+    assert criteria[0].indicator_columns is not None
 
-    # As colunas devem seguir a sequência natural de tamanhos
+    # As colunas da matriz indicadora devem seguir a sequência natural de tamanhos
     expected_order = ["grade_pp", "grade_p", "grade_m", "grade_g", "grade_gg", "grade_xg", "grade_xxg"]
-    assert [c.column for c in criteria] == expected_order
-    assert all(c.direction == SortDirection.ASC for c in criteria)
+    assert criteria[0].indicator_columns == expected_order
+    assert criteria[0].direction == SortDirection.ASC
 
 
 @pytest.mark.asyncio
 async def test_natural_language_parser_shirt_size_with_secondary_sort() -> None:
-    """Valida o parser com múltiplos critérios: tamanho de camisa e depois nome do aluno."""
+    """Valida o parser com múltiplos critérios: matriz indicadora de tamanho e critério escalar secundário."""
     columns = ["QT", "NOME DO ALUNO", "NOME DA CAMISA", "PP", "P", "M", "G", "GG", "XG", "XXG"]
     instruction = "ordenar por tamanho de camisa e depois nome do aluno"
     request = SemanticOrchestratorRequest(columns=columns, user_instruction=instruction)
@@ -233,8 +234,9 @@ async def test_natural_language_parser_shirt_size_with_secondary_sort() -> None:
     assert proposal.sort_spec is not None
     criteria = proposal.sort_spec.criteria
 
-    # 7 colunas de grade + 1 de nome_cliente
-    assert len(criteria) == 8
-    assert criteria[0].column == "grade_pp"
-    assert criteria[-1].column == "nome_cliente"
-    assert criteria[-1].direction == SortDirection.ASC
+    # 1 critério de matriz indicadora + 1 critério escalar (nome_cliente)
+    assert len(criteria) == 2
+    assert criteria[0].indicator_columns is not None
+    assert criteria[0].indicator_columns[0] == "grade_pp"
+    assert criteria[1].column == "nome_cliente"
+    assert criteria[1].direction == SortDirection.ASC

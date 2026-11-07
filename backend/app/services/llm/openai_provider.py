@@ -25,7 +25,9 @@ Você deve retornar OBRIGATORIAMENTE um objeto JSON estritamente com a seguinte 
   "sort_spec": {
     "criteria": [
       {
-        "column": "coluna_alvo",
+        "column": "nome_coluna_ou_null",
+        "custom_order": ["val1", "val2"] ou null,
+        "indicator_columns": ["col1", "col2"] ou null,
         "direction": "ASC" | "DESC",
         "nulls_position": "last"
       }
@@ -39,10 +41,11 @@ Você deve retornar OBRIGATORIAMENTE um objeto JSON estritamente com a seguinte 
 }
 
 Regras Cruciais:
-- Mantenha 'semantic_reasoning' extremamente sucinto (máximo 10 palavras por coluna) para economia estrita de tokens.
+- Mantenha 'semantic_reasoning' extremamente sucinto (máximo 10 palavras por coluna) para economia de tokens.
 - Se não houver instrução de ordenação, defina sort_spec como null.
 - Mantenha canonical_column sempre em snake_case limpo e padronizado em português.
-- Mapeamento por tamanho de peça/camisa em Confecção: quando a planilha tiver colunas dedicadas para cada tamanho (ex: PP, P, M, G, GG, XG, XXG ou grade_pp, grade_p, etc.) e o usuário pedir ordenação por tamanho de camisa/peça/grade, você DEVE gerar critérios no sort_spec na sequência natural de tamanhos têxteis (PP -> P -> M -> G -> GG -> XG -> XXG) com direction 'ASC' e nulls_position 'last'. Isso agrupa os registros por tamanho na ordem têxtil canônica mantendo a estabilidade.
+- Matrizes Indicadoras / One-Hot (agnóstico): Quando o usuário pedir ordenação por uma dimensão que está distribuída horizontalmente em múltiplas colunas de presença/opção mútua (ex.: tamanhos PP..XXG em confecção, escala de notas Péssimo..Excelente em pesquisas, faixas etárias, prioridades), utilize 'indicator_columns' com a lista ordenada dessas colunas na sequência semântica correta (ex: indicator_columns=['PP', 'P', 'M', 'G', 'GG', 'XG', 'XXG']).
+- Ordenação Categórica Não-Alfabética: Se a coluna for única mas seus valores seguirem uma ordem não-alfabética (ex.: Baixo/Médio/Alto), defina 'custom_order' com a sequência ordinal correta.
 """
 
 

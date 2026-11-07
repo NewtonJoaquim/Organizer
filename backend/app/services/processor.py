@@ -15,15 +15,9 @@ from app.schemas.process import (
     ProcessSpreadsheetRequest,
     ProcessSpreadsheetResponse,
 )
-from app.schemas.semantic import SortDirection, SortSpec
+from app.schemas.semantic import SortCriterion, SortDirection, SortSpec
 from app.services.file_service import file_service
 from app.services.header_detector import header_detector
-
-TEXTILE_SIZE_HIERARCHY: list[str] = [
-    "rn", "0", "1", "2", "3", "4", "6", "8", "10", "12", "14", "16",
-    "pp", "p", "m", "g", "gg", "xg", "xxg", "xxxg", "exg", "g1", "g2", "g3", "g4",
-]
-TEXTILE_SIZE_SET: set[str] = set(TEXTILE_SIZE_HIERARCHY)
 
 
 class DeterministicEngineService:
@@ -116,86 +110,120 @@ class DeterministicEngineService:
     ) -> pd.DataFrame:
         """
         Executa ordenação multi-critério determinística via mergesort estável (RN-02).
-        Preserva a ordem relativa de registros em caso de empate.
-        Suporta grupos de colunas indicadoras (ex: grade têxtil PP..XXG) e ordenação categórica.
+        Preserva a ordem relativa de registros em caso de empate (estabilidade algorítmica).
+
+        Suporta três modalidades agnósticas de ordenação:
+        1. Escalar convencional (numérica, data, alfabética);
+        2. Categórica não-alfabética via `custom_order` (ordenações ordinais arbitrárias);
+        3. Matriz Indicadora horizontal (one-hot) via `indicator_columns` (presença de marcação).
+        Também suporta fallback de compatibilidade caso uma sequência de colunas indicadoras
+        seja enviada em critérios individuais.
         """
         if not sort_spec or not sort_spec.criteria:
             return df.copy()
 
-        # Mapeamento reverso para encontrar a coluna no DataFrame caso a instrução
-        # use nomes canônicos e o DataFrame ainda use nomes originais
         reverse_mapping = {}
         if column_mapping:
             reverse_mapping = {canon.lower(): orig for orig, canon in column_mapping.items()}
 
         df_cols_lower = {col.lower(): col for col in df.columns}
 
-        resolved_criteria: list[tuple[str, Any]] = []
-        for crit in sort_spec.criteria:
-            crit_target = crit.column.lower()
-            matched_col = None
-
-            # 1. Correspondência direta pelo nome exato no DataFrame
-            if crit_target in df_cols_lower:
-                matched_col = df_cols_lower[crit_target]
-            # 2. Correspondência via mapeamento canônico reverso
-            elif crit_target in reverse_mapping and reverse_mapping[crit_target].lower() in df_cols_lower:
-                matched_col = df_cols_lower[reverse_mapping[crit_target].lower()]
-            # 3. Correspondência parcial / radical (apenas tokens > 2 chars para evitar falsos positivos com siglas curtas)
-            elif len(crit_target) > 2:
+        def resolve_col(target_name: str | None) -> str | None:
+            if not target_name:
+                return None
+            target_lower = target_name.lower()
+            if target_lower in df_cols_lower:
+                return df_cols_lower[target_lower]
+            if target_lower in reverse_mapping and reverse_mapping[target_lower].lower() in df_cols_lower:
+                return df_cols_lower[reverse_mapping[target_lower].lower()]
+            if len(target_lower) > 2:
                 for col_lower, actual_col in df_cols_lower.items():
-                    if len(col_lower) > 2 and (crit_target in col_lower or col_lower in crit_target):
-                        matched_col = actual_col
-                        break
-
-            if matched_col and not any(m == matched_col for m, _ in resolved_criteria):
-                resolved_criteria.append((matched_col, crit))
-
-        if not resolved_criteria:
-            return df.copy()
-
-        # Identifica se há colunas indicadoras de grade têxtil (PP, P, M, G, GG, XG, XXG)
-        size_indicator_cols = [
-            col for col, _ in resolved_criteria
-            if col.lower() in TEXTILE_SIZE_SET
-        ]
+                    if len(col_lower) > 2 and (target_lower in col_lower or col_lower in target_lower):
+                        return actual_col
+            return None
 
         df_work = df.copy()
         sort_keys: list[str] = []
         ascending_list: list[bool] = []
 
-        if len(size_indicator_cols) >= 2:
-            # Agrupamento matricial de indicadores mutuamente exclusivos (RN-02 estável)
-            def get_indicator_rank(row):
-                for idx, col in enumerate(size_indicator_cols):
-                    val = row[col]
-                    if pd.notna(val) and str(val).strip() != "":
-                        return idx
-                return len(size_indicator_cols)
+        unresolved_individual_criteria: list[tuple[str, SortCriterion]] = []
 
-            df_work["__indicator_size_rank__"] = df_work.apply(get_indicator_rank, axis=1)
-            sort_keys.append("__indicator_size_rank__")
-            ascending_list.append(True)
+        for idx, crit in enumerate(sort_spec.criteria):
+            # Caso 1: Matriz Indicadora Explícita (One-Hot Encoded Grid)
+            if crit.indicator_columns:
+                resolved_indicator_cols = [
+                    resolve_col(c) for c in crit.indicator_columns
+                ]
+                valid_indicator_cols = [c for c in resolved_indicator_cols if c is not None]
 
-        for col, crit in resolved_criteria:
-            if col in size_indicator_cols and len(size_indicator_cols) >= 2:
-                continue  # Já representado na hierarquia por __indicator_size_rank__
+                if valid_indicator_cols:
+                    rank_key = f"__indicator_rank_{idx}__"
 
-            # Suporte a coluna única contendo valores categóricos de tamanho têxtil
-            unique_vals = [str(v).strip().lower() for v in df_work[col].dropna().unique()]
-            if len(unique_vals) > 0 and all(v in TEXTILE_SIZE_SET for v in unique_vals):
-                cat_order = [s for s in TEXTILE_SIZE_HIERARCHY if s in unique_vals]
-                helper_col = f"__cat_{col}__"
-                df_work[helper_col] = pd.Categorical(
-                    df_work[col].astype(str).str.strip().str.lower(),
-                    categories=cat_order,
-                    ordered=True,
-                )
-                sort_keys.append(helper_col)
-            else:
-                sort_keys.append(col)
+                    def get_indicator_rank(row, cols=valid_indicator_cols):
+                        for col_idx, col_name in enumerate(cols):
+                            val = row[col_name]
+                            if pd.notna(val) and str(val).strip() != "":
+                                return col_idx
+                        return len(cols)
 
-            ascending_list.append(crit.direction == SortDirection.ASC)
+                    df_work[rank_key] = df_work.apply(get_indicator_rank, axis=1)
+                    sort_keys.append(rank_key)
+                    ascending_list.append(crit.direction == SortDirection.ASC)
+
+            # Caso 2: Coluna Individual
+            elif crit.column:
+                matched_col = resolve_col(crit.column)
+                if matched_col:
+                    unresolved_individual_criteria.append((matched_col, crit))
+
+        # Processa critérios individuais com agrupamento agnóstico automático de indicadores
+        if unresolved_individual_criteria:
+            def is_indicator_column(col_name: str) -> bool:
+                series = df_work[col_name]
+                non_null_count = series.notna().sum()
+                if non_null_count == 0 or non_null_count == len(series):
+                    return False
+                unique_vals = {str(v).strip().lower() for v in series.dropna().unique()}
+                return unique_vals.issubset({"x", "1", "1.0", "sim", "true", "v", "*", "ok"})
+
+            i = 0
+            while i < len(unresolved_individual_criteria):
+                group: list[str] = []
+                j = i
+                while j < len(unresolved_individual_criteria) and is_indicator_column(unresolved_individual_criteria[j][0]):
+                    group.append(unresolved_individual_criteria[j][0])
+                    j += 1
+
+                if len(group) >= 2:
+                    rank_key = f"__auto_indicator_rank_{i}__"
+                    def get_auto_rank(row, cols=group):
+                        for col_idx, col_name in enumerate(cols):
+                            val = row[col_name]
+                            if pd.notna(val) and str(val).strip() != "":
+                                return col_idx
+                        return len(cols)
+
+                    df_work[rank_key] = df_work.apply(get_auto_rank, axis=1)
+                    sort_keys.append(rank_key)
+                    ascending_list.append(unresolved_individual_criteria[i][1].direction == SortDirection.ASC)
+                    i = j
+                else:
+                    col_name, crit = unresolved_individual_criteria[i]
+                    if crit.custom_order:
+                        cat_key = f"__custom_order_{i}__"
+                        df_work[cat_key] = pd.Categorical(
+                            df_work[col_name],
+                            categories=crit.custom_order,
+                            ordered=True,
+                        )
+                        sort_keys.append(cat_key)
+                    else:
+                        sort_keys.append(col_name)
+                    ascending_list.append(crit.direction == SortDirection.ASC)
+                    i += 1
+
+        if not sort_keys:
+            return df.copy()
 
         sorted_indices = df_work.sort_values(
             by=sort_keys,

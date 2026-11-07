@@ -13,7 +13,21 @@ class NullsPosition(str, Enum):
 
 
 class SortCriterion(BaseModel):
-    column: str = Field(..., description="Nome da coluna canônica ou original sobre a qual o ordenamento será aplicado.")
+    column: str | None = Field(
+        default=None,
+        description="Nome da coluna canônica ou original sobre a qual o ordenamento escalar será aplicado.",
+    )
+    custom_order: list[str] | None = Field(
+        default=None,
+        description="Lista ordenada de valores para ordenação categórica/ordinal personalizada não-alfabética.",
+    )
+    indicator_columns: list[str] | None = Field(
+        default=None,
+        description=(
+            "Lista ordenada de colunas indicadoras (one-hot/matriz de presença) que representam uma escala ordinal "
+            "ou categorias mutuamente exclusivas distribuídas horizontalmente (ex.: ['PP', 'P', 'M'] ou ['Ruim', 'Bom'])."
+        ),
+    )
     direction: SortDirection = Field(default=SortDirection.ASC, description="Direção da ordenação (ASC ou DESC).")
     nulls_position: NullsPosition = Field(default=NullsPosition.LAST, description="Posição de valores nulos ou vazios.")
 

@@ -225,7 +225,7 @@ def test_process_and_download_api_endpoints(client: TestClient) -> None:
 
 def test_process_shirt_size_indicator_sort_matches_manual_ground_truth() -> None:
     """
-    Valida a ordenação por grade têxtil multi-coluna (PP -> P -> M -> G -> GG -> XG -> XXG)
+    Valida a ordenação por matriz indicadora horizontal agnóstica (indicator_columns)
     comparando diretamente com o gabarito de referência organizado manualmente pelo usuário.
     Garante 100% de integridade matemática e correspondência perfeita linha por linha.
     """
@@ -240,14 +240,17 @@ def test_process_shirt_size_indicator_sort_matches_manual_ground_truth() -> None
     import shutil
     shutil.copy(fixture_path, target_dir / "2_SERIE_NATAL.xlsx")
 
-    size_cols = ["PP", "P", "M", "G", "GG", "XG", "XXG"]
+    # 1. Testa via especificação agnóstica explícita indicator_columns
     sort_spec = SortSpec(
         criteria=[
-            SortCriterion(column=col, direction=SortDirection.ASC, nulls_position=NullsPosition.LAST)
-            for col in size_cols
+            SortCriterion(
+                indicator_columns=["PP", "P", "M", "G", "GG", "XG", "XXG"],
+                direction=SortDirection.ASC,
+                nulls_position=NullsPosition.LAST,
+            )
         ],
         raw_instruction="ordenar por tamanho de camisa",
-        explanation="Ordenação por tamanho de camisa multi-coluna",
+        explanation="Ordenação agnóstica por matriz indicadora",
     )
 
     request = ProcessSpreadsheetRequest(
@@ -266,14 +269,60 @@ def test_process_shirt_size_indicator_sort_matches_manual_ground_truth() -> None
     df_sorted = pd.read_excel(output_path)
     df_manual = pd.read_excel(ground_truth_path, header=1)
 
-    # Compara a ordem das linhas via identificador QT
     sorted_qts = list(df_sorted["QT"])
     manual_qts = list(df_manual["QT"])
     assert sorted_qts == manual_qts, f"Ordem divergente:\nProcessado: {sorted_qts}\nGabarito: {manual_qts}"
 
 
+def test_apply_stable_sort_agnostic_customer_survey_matrix() -> None:
+    """Valida a ordenação agnóstica em matriz indicadora de pesquisa de satisfação (Escala Likert)."""
+    df = pd.DataFrame({
+        "cliente": ["Cliente 1", "Cliente 2", "Cliente 3", "Cliente 4"],
+        "Péssimo": [None, None, "X", None],
+        "Regular": [None, None, None, "X"],
+        "Bom": ["X", None, None, None],
+        "Excelente": [None, "X", None, None],
+    })
+
+    sort_spec = SortSpec(
+        criteria=[
+            SortCriterion(
+                indicator_columns=["Péssimo", "Regular", "Bom", "Excelente"],
+                direction=SortDirection.ASC,
+            )
+        ],
+        explanation="Ordenação por escala de satisfação",
+    )
+
+    sorted_df = deterministic_engine.apply_stable_sort(df, sort_spec, column_mapping=None)
+    # Esperado: Péssimo (C3), Regular (C4), Bom (C1), Excelente (C2)
+    assert list(sorted_df["cliente"]) == ["Cliente 3", "Cliente 4", "Cliente 1", "Cliente 2"]
+
+
+def test_apply_stable_sort_agnostic_financial_credit_rating() -> None:
+    """Valida a ordenação ordinal agnóstica não-alfabética via custom_order (Rating de Crédito)."""
+    df = pd.DataFrame({
+        "empresa": ["Alpha S.A.", "Beta Ltda", "Gamma Corp", "Delta ME"],
+        "rating": ["BBB", "AAA", "B", "AA"],
+    })
+
+    sort_spec = SortSpec(
+        criteria=[
+            SortCriterion(
+                column="rating",
+                custom_order=["AAA", "AA", "BBB", "B"],
+                direction=SortDirection.ASC,
+            )
+        ],
+        explanation="Ordenação por rating de crédito",
+    )
+
+    sorted_df = deterministic_engine.apply_stable_sort(df, sort_spec, column_mapping=None)
+    assert list(sorted_df["empresa"]) == ["Beta Ltda", "Delta ME", "Alpha S.A.", "Gamma Corp"]
+
+
 def test_apply_stable_sort_single_categorical_size_column() -> None:
-    """Valida a ordenação de coluna única com valores categóricos de confecção (PP, P, M, G, GG)."""
+    """Valida a ordenação de coluna única com valores ordinais arbitrários (PP, P, M, GG) via custom_order."""
     df = pd.DataFrame({
         "id": [1, 2, 3, 4],
         "tamanho": ["GG", "PP", "M", "P"],
@@ -282,7 +331,12 @@ def test_apply_stable_sort_single_categorical_size_column() -> None:
 
     sort_spec = SortSpec(
         criteria=[
-            SortCriterion(column="tamanho", direction=SortDirection.ASC, nulls_position=NullsPosition.LAST)
+            SortCriterion(
+                column="tamanho",
+                custom_order=["PP", "P", "M", "GG"],
+                direction=SortDirection.ASC,
+                nulls_position=NullsPosition.LAST,
+            )
         ],
         explanation="Ordenação por tamanho categórico",
     )
@@ -302,8 +356,7 @@ def test_apply_stable_sort_indicator_with_dirty_values_preserves_stability() -> 
 
     sort_spec = SortSpec(
         criteria=[
-            SortCriterion(column="PP", direction=SortDirection.ASC),
-            SortCriterion(column="P", direction=SortDirection.ASC),
+            SortCriterion(indicator_columns=["PP", "P"], direction=SortDirection.ASC),
         ],
         explanation="Grade PP e P",
     )

@@ -248,17 +248,16 @@ class MockLLMProvider(BaseLLMProvider):
                             size_mappings.append(m)
 
         if len(size_mappings) >= 2:
-            for m in size_mappings:
-                criteria.append(
-                    SortCriterion(
-                        column=m.canonical_column,
-                        direction=SortDirection.ASC,
-                        nulls_position=NullsPosition.LAST,
-                    )
+            criteria.append(
+                SortCriterion(
+                    indicator_columns=[m.canonical_column for m in size_mappings],
+                    direction=SortDirection.ASC,
+                    nulls_position=NullsPosition.LAST,
                 )
+            )
             grade_repr = " -> ".join([m.original_column for m in size_mappings])
             explanation_parts.append(
-                f"grade têxtil multi-coluna ({grade_repr}) em ordem canônica com nulos ao final"
+                f"matriz indicadora multi-coluna ({grade_repr}) em ordem canônica com nulos ao final"
             )
 
         # 2. Divide por conectores comuns ("e depois", "e em seguida", ",", "e")
