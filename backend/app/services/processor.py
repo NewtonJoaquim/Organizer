@@ -19,6 +19,12 @@ from app.schemas.semantic import SortDirection, SortSpec
 from app.services.file_service import file_service
 from app.services.header_detector import header_detector
 
+TEXTILE_SIZE_HIERARCHY: list[str] = [
+    "rn", "0", "1", "2", "3", "4", "6", "8", "10", "12", "14", "16",
+    "pp", "p", "m", "g", "gg", "xg", "xxg", "xxxg", "exg", "g1", "g2", "g3", "g4",
+]
+TEXTILE_SIZE_SET: set[str] = set(TEXTILE_SIZE_HIERARCHY)
+
 
 class DeterministicEngineService:
     """
@@ -111,6 +117,7 @@ class DeterministicEngineService:
         """
         Executa ordenação multi-critério determinística via mergesort estável (RN-02).
         Preserva a ordem relativa de registros em caso de empate.
+        Suporta grupos de colunas indicadoras (ex: grade têxtil PP..XXG) e ordenação categórica.
         """
         if not sort_spec or not sort_spec.criteria:
             return df.copy()
@@ -121,12 +128,9 @@ class DeterministicEngineService:
         if column_mapping:
             reverse_mapping = {canon.lower(): orig for orig, canon in column_mapping.items()}
 
-        sort_cols: list[str] = []
-        ascending_list: list[bool] = []
-        na_pos_list: list[str] = []
-
         df_cols_lower = {col.lower(): col for col in df.columns}
 
+        resolved_criteria: list[tuple[str, Any]] = []
         for crit in sort_spec.criteria:
             crit_target = crit.column.lower()
             matched_col = None
@@ -137,32 +141,70 @@ class DeterministicEngineService:
             # 2. Correspondência via mapeamento canônico reverso
             elif crit_target in reverse_mapping and reverse_mapping[crit_target].lower() in df_cols_lower:
                 matched_col = df_cols_lower[reverse_mapping[crit_target].lower()]
-            # 3. Correspondência parcial / radical
-            else:
+            # 3. Correspondência parcial / radical (apenas tokens > 2 chars para evitar falsos positivos com siglas curtas)
+            elif len(crit_target) > 2:
                 for col_lower, actual_col in df_cols_lower.items():
-                    if crit_target in col_lower or col_lower in crit_target:
+                    if len(col_lower) > 2 and (crit_target in col_lower or col_lower in crit_target):
                         matched_col = actual_col
                         break
 
-            if matched_col and matched_col not in sort_cols:
-                sort_cols.append(matched_col)
-                ascending_list.append(crit.direction == SortDirection.ASC)
-                na_pos_list.append(crit.nulls_position.value)
+            if matched_col and not any(m == matched_col for m, _ in resolved_criteria):
+                resolved_criteria.append((matched_col, crit))
 
-        if not sort_cols:
+        if not resolved_criteria:
             return df.copy()
 
-        # Mergesort em Pandas é estrito, estável e executa em O(N log N)
-        # na_position em sort_values aceita um valor escalar para o conjunto
-        na_pos = na_pos_list[0] if na_pos_list else "last"
-        sorted_df = df.sort_values(
-            by=sort_cols,
+        # Identifica se há colunas indicadoras de grade têxtil (PP, P, M, G, GG, XG, XXG)
+        size_indicator_cols = [
+            col for col, _ in resolved_criteria
+            if col.lower() in TEXTILE_SIZE_SET
+        ]
+
+        df_work = df.copy()
+        sort_keys: list[str] = []
+        ascending_list: list[bool] = []
+
+        if len(size_indicator_cols) >= 2:
+            # Agrupamento matricial de indicadores mutuamente exclusivos (RN-02 estável)
+            def get_indicator_rank(row):
+                for idx, col in enumerate(size_indicator_cols):
+                    val = row[col]
+                    if pd.notna(val) and str(val).strip() != "":
+                        return idx
+                return len(size_indicator_cols)
+
+            df_work["__indicator_size_rank__"] = df_work.apply(get_indicator_rank, axis=1)
+            sort_keys.append("__indicator_size_rank__")
+            ascending_list.append(True)
+
+        for col, crit in resolved_criteria:
+            if col in size_indicator_cols and len(size_indicator_cols) >= 2:
+                continue  # Já representado na hierarquia por __indicator_size_rank__
+
+            # Suporte a coluna única contendo valores categóricos de tamanho têxtil
+            unique_vals = [str(v).strip().lower() for v in df_work[col].dropna().unique()]
+            if len(unique_vals) > 0 and all(v in TEXTILE_SIZE_SET for v in unique_vals):
+                cat_order = [s for s in TEXTILE_SIZE_HIERARCHY if s in unique_vals]
+                helper_col = f"__cat_{col}__"
+                df_work[helper_col] = pd.Categorical(
+                    df_work[col].astype(str).str.strip().str.lower(),
+                    categories=cat_order,
+                    ordered=True,
+                )
+                sort_keys.append(helper_col)
+            else:
+                sort_keys.append(col)
+
+            ascending_list.append(crit.direction == SortDirection.ASC)
+
+        sorted_indices = df_work.sort_values(
+            by=sort_keys,
             ascending=ascending_list,
             kind="mergesort",
-            na_position=na_pos,
-        )
+            na_position="last",
+        ).index
 
-        return sorted_df
+        return df.loc[sorted_indices]
 
     @staticmethod
     def export_formatted_excel(df: pd.DataFrame, output_path: Path, sheet_title: str) -> None:

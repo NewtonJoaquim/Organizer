@@ -19,7 +19,7 @@ Você deve retornar OBRIGATORIAMENTE um objeto JSON estritamente com a seguinte 
       "canonical_column": "nome_canonico_em_snake_case",
       "detected_type": "date" | "currency" | "text" | "integer" | "numeric" | "id",
       "confidence": 0.95,
-      "semantic_reasoning": "Justificativa breve do de-para semântico"
+      "semantic_reasoning": "Justificativa breve de até 10 palavras"
     }
   ],
   "sort_spec": {
@@ -31,16 +31,18 @@ Você deve retornar OBRIGATORIAMENTE um objeto JSON estritamente com a seguinte 
       }
     ],
     "raw_instruction": "instrução do usuário",
-    "explanation": "Explicação em português de como a ordenação foi interpretada"
+    "explanation": "Explicação concisa em português de como a instrução foi interpretada"
   },
   "estimated_prompt_tokens": 0,
   "estimated_completion_tokens": 0,
   "total_tokens": 0
 }
 
-Observações importantes:
-- Se não houver instrução de ordenação, defina sort_spec como null ou sugira uma ordenação lógica por data ou ID.
+Regras Cruciais:
+- Mantenha 'semantic_reasoning' extremamente sucinto (máximo 10 palavras por coluna) para economia estrita de tokens.
+- Se não houver instrução de ordenação, defina sort_spec como null.
 - Mantenha canonical_column sempre em snake_case limpo e padronizado em português.
+- Mapeamento por tamanho de peça/camisa em Confecção: quando a planilha tiver colunas dedicadas para cada tamanho (ex: PP, P, M, G, GG, XG, XXG ou grade_pp, grade_p, etc.) e o usuário pedir ordenação por tamanho de camisa/peça/grade, você DEVE gerar critérios no sort_spec na sequência natural de tamanhos têxteis (PP -> P -> M -> G -> GG -> XG -> XXG) com direction 'ASC' e nulls_position 'last'. Isso agrupa os registros por tamanho na ordem têxtil canônica mantendo a estabilidade.
 """
 
 

@@ -196,3 +196,45 @@ def test_semantic_orchestrator_endpoint(client: TestClient) -> None:
     assert len(data["proposal"]["mappings"]) == 3
     assert data["proposal"]["total_tokens"] < 800
     assert data["processing_time_ms"] > 0
+
+
+@pytest.mark.asyncio
+async def test_natural_language_parser_shirt_size_indicator_grid() -> None:
+    """Valida o parser ao solicitar 'ordenar por tamanho de camisa' em grade multi-coluna (Persona Carlos)."""
+    columns = ["QT", "NOME DO ALUNO", "NOME DA CAMISA", "PP", "P", "M", "G", "GG", "XG", "XXG"]
+    instruction = "ordenar por tamanho de camisa"
+    request = SemanticOrchestratorRequest(columns=columns, user_instruction=instruction)
+
+    response = await semantic_orchestrator.orchestrate(request)
+    proposal = response.proposal
+
+    assert proposal.domain_detected == "Confecção"
+    assert proposal.sort_spec is not None
+
+    criteria = proposal.sort_spec.criteria
+    assert len(criteria) == 7
+
+    # As colunas devem seguir a sequência natural de tamanhos
+    expected_order = ["grade_pp", "grade_p", "grade_m", "grade_g", "grade_gg", "grade_xg", "grade_xxg"]
+    assert [c.column for c in criteria] == expected_order
+    assert all(c.direction == SortDirection.ASC for c in criteria)
+
+
+@pytest.mark.asyncio
+async def test_natural_language_parser_shirt_size_with_secondary_sort() -> None:
+    """Valida o parser com múltiplos critérios: tamanho de camisa e depois nome do aluno."""
+    columns = ["QT", "NOME DO ALUNO", "NOME DA CAMISA", "PP", "P", "M", "G", "GG", "XG", "XXG"]
+    instruction = "ordenar por tamanho de camisa e depois nome do aluno"
+    request = SemanticOrchestratorRequest(columns=columns, user_instruction=instruction)
+
+    response = await semantic_orchestrator.orchestrate(request)
+    proposal = response.proposal
+
+    assert proposal.sort_spec is not None
+    criteria = proposal.sort_spec.criteria
+
+    # 7 colunas de grade + 1 de nome_cliente
+    assert len(criteria) == 8
+    assert criteria[0].column == "grade_pp"
+    assert criteria[-1].column == "nome_cliente"
+    assert criteria[-1].direction == SortDirection.ASC

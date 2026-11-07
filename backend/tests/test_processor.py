@@ -221,3 +221,93 @@ def test_process_and_download_api_endpoints(client: TestClient) -> None:
     # 3. Testa download de ID inexistente (deve retornar 404)
     download_res_404 = client.get("/api/process/download/id-inexistente")
     assert download_res_404.status_code == 404
+
+
+def test_process_shirt_size_indicator_sort_matches_manual_ground_truth() -> None:
+    """
+    Valida a ordenação por grade têxtil multi-coluna (PP -> P -> M -> G -> GG -> XG -> XXG)
+    comparando diretamente com o gabarito de referência organizado manualmente pelo usuário.
+    Garante 100% de integridade matemática e correspondência perfeita linha por linha.
+    """
+    fixture_path = Path(__file__).parent / "fixtures" / "2_SERIE_NATAL.xlsx"
+    ground_truth_path = Path(__file__).parent / "fixtures" / "organizado_manualmente_2_SERIE_NATAL.xlsx"
+    assert fixture_path.exists()
+    assert ground_truth_path.exists()
+
+    file_id = "test-carlos-natal-size-sort"
+    target_dir = file_service.temp_dir / file_id
+    target_dir.mkdir(parents=True, exist_ok=True)
+    import shutil
+    shutil.copy(fixture_path, target_dir / "2_SERIE_NATAL.xlsx")
+
+    size_cols = ["PP", "P", "M", "G", "GG", "XG", "XXG"]
+    sort_spec = SortSpec(
+        criteria=[
+            SortCriterion(column=col, direction=SortDirection.ASC, nulls_position=NullsPosition.LAST)
+            for col in size_cols
+        ],
+        raw_instruction="ordenar por tamanho de camisa",
+        explanation="Ordenação por tamanho de camisa multi-coluna",
+    )
+
+    request = ProcessSpreadsheetRequest(
+        file_id=file_id,
+        sort_spec=sort_spec,
+    )
+
+    response = deterministic_engine.process(request)
+
+    assert response.integrity_audit.integrity_verified is True
+    assert response.integrity_audit.rows_match is True
+    assert response.integrity_audit.pre_process_hash == response.integrity_audit.post_process_hash
+
+    # Lê o arquivo processado gerado e compara com o gabarito manual
+    output_path = file_service.temp_dir / response.processed_file_id / response.filename
+    df_sorted = pd.read_excel(output_path)
+    df_manual = pd.read_excel(ground_truth_path, header=1)
+
+    # Compara a ordem das linhas via identificador QT
+    sorted_qts = list(df_sorted["QT"])
+    manual_qts = list(df_manual["QT"])
+    assert sorted_qts == manual_qts, f"Ordem divergente:\nProcessado: {sorted_qts}\nGabarito: {manual_qts}"
+
+
+def test_apply_stable_sort_single_categorical_size_column() -> None:
+    """Valida a ordenação de coluna única com valores categóricos de confecção (PP, P, M, G, GG)."""
+    df = pd.DataFrame({
+        "id": [1, 2, 3, 4],
+        "tamanho": ["GG", "PP", "M", "P"],
+        "aluno": ["Carlos", "Ana", "Bia", "Daniel"],
+    })
+
+    sort_spec = SortSpec(
+        criteria=[
+            SortCriterion(column="tamanho", direction=SortDirection.ASC, nulls_position=NullsPosition.LAST)
+        ],
+        explanation="Ordenação por tamanho categórico",
+    )
+
+    sorted_df = deterministic_engine.apply_stable_sort(df, sort_spec, column_mapping=None)
+    assert list(sorted_df["tamanho"]) == ["PP", "P", "M", "GG"]
+    assert list(sorted_df["aluno"]) == ["Ana", "Daniel", "Bia", "Carlos"]
+
+
+def test_apply_stable_sort_indicator_with_dirty_values_preserves_stability() -> None:
+    """Valida que marcas heterogêneas ('X', 'x', 1) em colunas indicadoras mantêm a estabilidade."""
+    df = pd.DataFrame({
+        "id": [10, 20, 30, 40],
+        "PP": ["x", "X", None, None],
+        "P": [None, None, 1, "X"],
+    })
+
+    sort_spec = SortSpec(
+        criteria=[
+            SortCriterion(column="PP", direction=SortDirection.ASC),
+            SortCriterion(column="P", direction=SortDirection.ASC),
+        ],
+        explanation="Grade PP e P",
+    )
+
+    sorted_df = deterministic_engine.apply_stable_sort(df, sort_spec, column_mapping=None)
+    # 10 e 20 são PP (mantêm ordem original 10, 20); 30 e 40 são P (mantêm ordem 30, 40)
+    assert list(sorted_df["id"]) == [10, 20, 30, 40]

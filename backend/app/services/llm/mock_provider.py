@@ -220,17 +220,57 @@ class MockLLMProvider(BaseLLMProvider):
         - "ordenar por data mais recente e depois maior valor"
         - "ordene por cliente crescente e valor decrescente"
         - "organizar por data pedido e depois cliente"
+        - "ordenar por tamanho de camisa" (agrupamento matricial têxtil PP -> XXG)
         """
         inst_lower = instruction.lower()
         criteria: list[SortCriterion] = []
         explanation_parts: list[str] = []
 
-        # Divide por conectores comuns ("e depois", "e em seguida", ",", "e")
+        # 1. Trata caso especial de ordenação por grade têxtil multi-coluna (Confecção)
+        size_hierarchy = [
+            "rn", "0", "1", "2", "3", "4", "6", "8", "10", "12", "14", "16",
+            "pp", "p", "m", "g", "gg", "xg", "xxg", "xxxg", "exg", "g1", "g2", "g3", "g4"
+        ]
+        is_size_instruction = (
+            any(term in inst_lower for term in ["tamanho", "grade", "camisa"])
+            and "nome da camisa" not in inst_lower
+            and "nome_da_camisa" not in inst_lower
+        )
+
+        size_mappings: list[ColumnMapping] = []
+        if is_size_instruction:
+            for size_key in size_hierarchy:
+                for m in mappings:
+                    norm_orig = self._normalize_col(m.original_column)
+                    norm_canon = self._normalize_col(m.canonical_column)
+                    if norm_orig == size_key or norm_canon in (f"grade_{size_key}", f"tamanho_{size_key}"):
+                        if m not in size_mappings:
+                            size_mappings.append(m)
+
+        if len(size_mappings) >= 2:
+            for m in size_mappings:
+                criteria.append(
+                    SortCriterion(
+                        column=m.canonical_column,
+                        direction=SortDirection.ASC,
+                        nulls_position=NullsPosition.LAST,
+                    )
+                )
+            grade_repr = " -> ".join([m.original_column for m in size_mappings])
+            explanation_parts.append(
+                f"grade têxtil multi-coluna ({grade_repr}) em ordem canônica com nulos ao final"
+            )
+
+        # 2. Divide por conectores comuns ("e depois", "e em seguida", ",", "e")
         clauses = re.split(r",|\be depois\b|\be em seguida\b|\be\b", inst_lower)
 
         for clause in clauses:
             clause = clause.strip()
             if not clause:
+                continue
+
+            # Se a cláusula é referente a tamanho e já foi processada pelo bloco têxtil multi-coluna, pula
+            if len(size_mappings) >= 2 and any(term in clause for term in ["tamanho", "grade", "camisa"]) and "nome" not in clause:
                 continue
 
             # Detecta direção
