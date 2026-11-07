@@ -23,6 +23,15 @@ class Settings(BaseSettings):
     TEMP_STORAGE_DIR: Path = BASE_DIR / "storage" / "temp"
     TEMP_FILE_TTL_MINUTES: int = 15
 
+    # Configuração do Orquestrador Semântico / LLM (RF-03, RF-04, RNF-04)
+    LLM_PROVIDER: str = "auto"  # "auto", "openai", "gemini", "mock"
+    OPENAI_API_KEY: str | None = None
+    OPENAI_MODEL: str = "gpt-4o-mini"
+    OPENAI_BASE_URL: str | None = None
+    GEMINI_API_KEY: str | None = None
+    GEMINI_MODEL: str = "gemini-1.5-flash"
+    MAX_TOKENS_PER_CALL: int = 800  # RNF-04: teto de tokens
+
     # CORS
     BACKEND_CORS_ORIGINS: list[str] = [
         "http://localhost:3000",
@@ -32,9 +41,10 @@ class Settings(BaseSettings):
     ]
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=[str(Path(__file__).resolve().parent.parent.parent / ".env"), ".env"],
         env_file_encoding="utf-8",
         case_sensitive=True,
+        extra="ignore",
     )
 
 

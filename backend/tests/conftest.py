@@ -13,10 +13,13 @@ from app.services.file_service import file_service
 
 @pytest.fixture(scope="session", autouse=True)
 def setup_test_environment(tmp_path_factory: pytest.TempPathFactory) -> Generator[None, None, None]:
-    """Configura um diretório temporário isolado para os testes."""
+    """Configura um diretório temporário isolado e modo mock determinístico para a suíte de testes."""
     test_temp_dir = tmp_path_factory.mktemp("organizer_test_storage")
     original_temp_dir = settings.TEMP_STORAGE_DIR
+    original_llm_provider = settings.LLM_PROVIDER
+
     settings.TEMP_STORAGE_DIR = test_temp_dir
+    settings.LLM_PROVIDER = "mock"  # Garante testes instantâneos e sem consumo de tokens em testes
     file_service.temp_dir = test_temp_dir
     file_service._ensure_temp_dir()
 
@@ -25,6 +28,7 @@ def setup_test_environment(tmp_path_factory: pytest.TempPathFactory) -> Generato
     # Cleanup após a suíte
     shutil.rmtree(test_temp_dir, ignore_errors=True)
     settings.TEMP_STORAGE_DIR = original_temp_dir
+    settings.LLM_PROVIDER = original_llm_provider
 
 
 @pytest.fixture

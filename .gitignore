@@ -42,6 +42,13 @@ Thumbs.db
 .vscode/
 .idea/
 
+# Environment Variables & Secrets
+.env
+*.env
+backend/.env
+!.env.example
+!backend/.env.example
+
 # Local agents config (protect credentials)
 .agents/*
 !.agents/*.example
