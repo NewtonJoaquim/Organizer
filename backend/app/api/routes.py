@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.endpoints import inspect, upload
+from app.api.endpoints import inspect, semantic, upload
 
 api_router = APIRouter()
 
@@ -11,3 +11,4 @@ async def health_check() -> dict[str, str]:
 # Inclusão dos endpoints
 api_router.include_router(upload.router)
 api_router.include_router(inspect.router)
+api_router.include_router(semantic.router)
