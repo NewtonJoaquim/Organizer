@@ -7,18 +7,45 @@ from app.services.llm.base import BaseLLMProvider
 
 
 SYSTEM_PROMPT = """Você é o Orquestrador Semântico do Organizer App, um sistema corporativo de engenharia de dados.
-Sua função é receber EXCLUSIVAMENTE a lista de nomes das colunas de uma planilha (metadados) e uma instrução em linguagem natural.
+Sua função é receber EXCLUSIVAMENTE a lista de nomes das colunas de uma planilha (metadados) e uma instrução opcional do usuário.
 Em NENHUMA hipótese dados sensíveis de clientes ou valores de linhas serão fornecidos (conformidade estrita com LGPD e Zero Data Retention).
 
-Você deve retornar estritamente um JSON estruturado aderente ao schema solicitado:
-1. domain_detected: Segmento de negócio (Financeiro, Vendas, Logística, RH, Confecção ou Geral).
-2. mappings: Para cada coluna original, o nome canônico em snake_case (ex: data_vencimento), tipo de dado inferido e pontuação de confiança (0.0 a 1.0).
-3. sort_spec: Se o usuário pedir ordenação, converter em critérios formais (coluna, direção ASC/DESC).
+Você deve retornar OBRIGATORIAMENTE um objeto JSON estritamente com a seguinte estrutura:
+{
+  "domain_detected": "Financeiro" | "Vendas" | "Logística" | "RH" | "Confecção" | "Geral",
+  "mappings": [
+    {
+      "original_column": "Nome_Original",
+      "canonical_column": "nome_canonico_em_snake_case",
+      "detected_type": "date" | "currency" | "text" | "integer" | "numeric" | "id",
+      "confidence": 0.95,
+      "semantic_reasoning": "Justificativa breve do de-para semântico"
+    }
+  ],
+  "sort_spec": {
+    "criteria": [
+      {
+        "column": "coluna_alvo",
+        "direction": "ASC" | "DESC",
+        "nulls_position": "last"
+      }
+    ],
+    "raw_instruction": "instrução do usuário",
+    "explanation": "Explicação em português de como a ordenação foi interpretada"
+  },
+  "estimated_prompt_tokens": 0,
+  "estimated_completion_tokens": 0,
+  "total_tokens": 0
+}
+
+Observações importantes:
+- Se não houver instrução de ordenação, defina sort_spec como null ou sugira uma ordenação lógica por data ou ID.
+- Mantenha canonical_column sempre em snake_case limpo e padronizado em português.
 """
 
 
 class OpenAIProvider(BaseLLMProvider):
-    """Provedor para OpenAI ou APIs compatíveis (Groq, vLLM, Ollama, etc.) com Structured Outputs."""
+    """Provedor para OpenAI (GPT-4o-mini) com saídas estruturadas JSON validadas via Pydantic."""
 
     def __init__(self, api_key: str | None = None, model: str | None = None, base_url: str | None = None) -> None:
         self.api_key = api_key or settings.OPENAI_API_KEY
@@ -34,12 +61,12 @@ class OpenAIProvider(BaseLLMProvider):
         if not self.api_key:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="OPENAI_API_KEY não configurada no ambiente.",
+                detail="OPENAI_API_KEY não configurada no ambiente ou no arquivo .env.",
             )
 
         user_content = {
             "columns": columns,
-            "instruction": instruction or "Organizar e padronizar os nomes de colunas",
+            "instruction": instruction or "Padronizar os nomes de colunas e inferir os tipos semânticos",
             "domain_hint": domain_hint,
         }
 
@@ -49,19 +76,12 @@ class OpenAIProvider(BaseLLMProvider):
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": json.dumps(user_content, ensure_ascii=False)},
             ],
-            "response_format": {
-                "type": "json_schema",
-                "json_schema": {
-                    "name": "mapping_proposal",
-                    "strict": True,
-                    "schema": MappingProposal.model_json_schema(),
-                },
-            },
+            "response_format": {"type": "json_object"},
             "max_tokens": settings.MAX_TOKENS_PER_CALL,
             "temperature": 0.0,
         }
 
-        async with httpx.AsyncClient(timeout=15.0) as client:
+        async with httpx.AsyncClient(timeout=20.0) as client:
             resp = await client.post(
                 f"{self.base_url}/chat/completions",
                 headers={
@@ -74,7 +94,7 @@ class OpenAIProvider(BaseLLMProvider):
             if resp.status_code != 200:
                 raise HTTPException(
                     status_code=status.HTTP_502_BAD_GATEWAY,
-                    detail=f"Falha na chamada à API de LLM: HTTP {resp.status_code} - {resp.text}",
+                    detail=f"Falha na chamada à API de LLM da OpenAI: HTTP {resp.status_code} - {resp.text}",
                 )
 
             data = resp.json()
@@ -82,7 +102,6 @@ class OpenAIProvider(BaseLLMProvider):
             usage = data.get("usage", {})
 
             parsed = json.loads(raw_text)
-            # Atualiza contagem real de tokens informada pela API
             parsed["estimated_prompt_tokens"] = usage.get("prompt_tokens", 0)
             parsed["estimated_completion_tokens"] = usage.get("completion_tokens", 0)
             parsed["total_tokens"] = usage.get("total_tokens", 0)

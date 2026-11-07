@@ -8,15 +8,24 @@ from app.services.llm.openai_provider import OpenAIProvider
 def get_llm_provider() -> BaseLLMProvider:
     """
     Retorna a instância do provedor LLM configurado.
-    Prioriza OpenAI ou Gemini se as chaves estiverem presentes; caso contrário,
-    utiliza o MockLLMProvider determinístico de alta fidelidade (zero custo e zero latência de rede).
+    Se uma chave OpenAI estiver presente e o provedor não for forçado para 'mock',
+    ativa automaticamente o OpenAIProvider com chamadas reais ao GPT-4o-mini.
     """
     provider_name = settings.LLM_PROVIDER.lower()
 
-    if provider_name == "openai" and settings.OPENAI_API_KEY:
+    if provider_name == "mock":
+        return MockLLMProvider()
+
+    # Prioriza OpenAI se chave estiver configurada
+    if settings.OPENAI_API_KEY and (provider_name in ["openai", "auto", "default"] or provider_name == "mock" and settings.OPENAI_API_KEY):
         return OpenAIProvider()
-    elif provider_name == "gemini" and settings.GEMINI_API_KEY:
+
+    # Suporte a Gemini
+    if settings.GEMINI_API_KEY and provider_name == "gemini":
         return GeminiProvider()
 
-    # Padrão seguro para desenvolvimento, testes e CI
+    if settings.OPENAI_API_KEY:
+        return OpenAIProvider()
+
+    # Fallback seguro para desenvolvimento local sem custos
     return MockLLMProvider()

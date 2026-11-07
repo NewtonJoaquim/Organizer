@@ -21,7 +21,7 @@ class SemanticOrchestratorService:
     @property
     def provider(self) -> BaseLLMProvider:
         if self._provider is None:
-            self._provider = get_llm_provider()
+            return get_llm_provider()
         return self._provider
 
     async def orchestrate(
