@@ -23,7 +23,7 @@ A metodologia SMART exige que a meta seja formulada sob cinco critérios complem
 
 > ### 🎯 Declaração Oficial do Objetivo do Projeto
 >
-> **"Desenvolver e validar, ao longo de 3 Sprints (6 a 8 semanas) durante o ciclo do Projeto Aplicado, um Produto Mínimo Viável (MVP) da aplicação 'Organizer App' — composta por motor híbrido desacoplado (interpretação semântica de schema via LLM e execução algorítmica determinística local) e interface web responsiva —, capaz de automatizar a higienização, mapeamento de cabeçalhos e ordenação de planilhas heterogêneas (.xlsx) de até 10.000 linhas em menos de 15 segundos por arquivo, alcançando taxa de acerto semântico de colunas $\ge 90\%$, compreensão de comandos em português $\ge 92\%$, integridade matemática estrita de 100% dos dados (zero alucinação numérica) e descarte imediato dos arquivos temporários (Zero Data Retention), validando a redução do tempo de manipulação manual em pelo menos 70% perante operadores de teste das personas priorizadas."**
+> **"Desenvolver e validar, ao longo de 21 dias divididos em 3 Sprints semanais (7 dias por sprint) durante o ciclo do Projeto Aplicado, um Produto Mínimo Viável (MVP) da aplicação 'Organizer App' — composta por motor híbrido desacoplado (interpretação semântica de schema via LLM e execução algorítmica determinística local) e interface web responsiva —, capaz de automatizar a higienização, mapeamento de cabeçalhos e ordenação de planilhas heterogêneas (.xlsx) de até 10.000 linhas em menos de 15 segundos por arquivo, alcançando taxa de acerto semântico de colunas $\ge 90\%$, compreensão de comandos em português $\ge 92\%$, integridade matemática estrita de 100% dos dados (zero alucinação numérica) e descarte imediato dos arquivos temporários (Zero Data Retention), validando a redução do tempo de manipulação manual em pelo menos 70% perante operadores de teste das personas priorizadas."**
 
 ---
 
@@ -44,7 +44,7 @@ A metodologia SMART exige que a meta seja formulada sob cinco critérios complem
 │ R • RELEVANTE       Elimina 30-40% de tempo gasto em data wrangling braçal  │
 │                     e blinda o negócio contra prejuízos de erro humano.     │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│ T • TEMPORAL        Execução e homologação em 3 Sprints (6 a 8 semanas)     │
+│ T – TEMPORAL        Execução e homologação em 21 dias (3 Sprints de 7 dias) │
 │                     conforme cronograma do Projeto Aplicado.                │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -114,31 +114,31 @@ O objetivo ataca diretamente a dor central investigada e quantificada na *Análi
 
 ### 3.5. T — Time-based (Temporal)
 
-O cronograma do objetivo é temporalmente delimitado pelas **3 Sprints do Projeto Aplicado**, com duração total estimada entre **6 e 8 semanas**:
+O cronograma do objetivo é temporalmente delimitado por um ciclo estrito de **21 dias corridos**, estruturados em **3 Sprints ágeis semanais de 7 dias cada**:
 
 ```mermaid
 timeline
-    title Cronograma de Entrega e Marcos Temporais (3 Sprints)
-    Sprint 1 (Semanas 1 a 3) : Motor Central (Core Engine)
+    title Cronograma de Entrega e Marcos Temporais (21 Dias / 3 Sprints)
+    Sprint 1 (Dias 1 a 7 - Semana 1) : Motor Central (Core Engine)
                              : Leitura de arquivos brutos (.xlsx)
                              : Heurística de cabeçalho (ignorar preâmbulos)
                              : Orquestração semântica via LLM
                              : Ordenação determinística local
                              : Arquitetura de retenção zero (LGPD)
-    Sprint 2 (Semanas 4 a 5) : Consolidação e Validação Humana
+    Sprint 2 (Dias 8 a 14 - Semana 2) : Consolidação e Validação Humana
                              : Mecanismo de merge multi-abas
                              : Interface web com pré-visualização (Antes x Depois)
                              : Exibição do score de confiança do mapeamento
-    Sprint 3 (Semanas 6 a 8) : Canais, Testes com Usuários e Homologação
+    Sprint 3 (Dias 15 a 21 - Semana 3) : Canais, Testes com Usuários e Homologação
                              : Prototipação de suplemento (Add-in) para Excel
                              : Execução dos testes de usabilidade com as personas
                              : Validação das métricas de tempo e assertividade
                              : Consolidação do Relatório Final do Projeto
 ```
 
-* **Marco Sprint 1 (Semanas 1 a 3):** Validação técnica das hipóteses fundacionais (H6, H1, H9, H4, H3, H2) em ambiente de backend com testes unitários e de integração de arquivos.
-* **Marco Sprint 2 (Semanas 4 a 5):** Validação funcional de consolidação de abas (H8) e prototipagem da interface com validação humana e pré-visualização (H7).
-* **Marco Sprint 3 (Semanas 6 a 8):** Prototipação do canal nativo de distribuição (H5) e condução das rodadas de testes de aceitação com operadores reais, culminando na homologação das métricas SMART.
+* **Marco Sprint 1 (Dias 1 a 7 - Semana 1):** Validação técnica das hipóteses fundacionais (H6, H1, H9, H4, H3, H2) em ambiente de backend com testes unitários e de integração de arquivos.
+* **Marco Sprint 2 (Dias 8 a 14 - Semana 2):** Validação funcional de consolidação de abas (H8) e prototipagem da interface com validação humana e pré-visualização (H7).
+* **Marco Sprint 3 (Dias 15 a 21 - Semana 3):** Prototipação do canal nativo de distribuição (H5) e condução das rodadas de testes de aceitação com operadores reais, culminando na homologação das métricas SMART.
 
 ---
 
@@ -162,10 +162,10 @@ Para o preenchimento da seção **1.2.1 Objetivo SMART** do documento `Relatóri
 
 > **Objetivo SMART do Projeto Aplicado:**
 > 
-> "Desenvolver e validar, no período de 3 Sprints (6 a 8 semanas) durante o Projeto Aplicado, um Produto Mínimo Viável (MVP) da aplicação *Organizer App*, provido de arquitetura híbrida (mapeamento semântico de schema e intenções via modelo de linguagem e ordenação algorítmica determinística local) e interface web responsiva, capaz de:
+> "Desenvolver e validar, no período de 21 dias divididos em 3 Sprints semanais (7 dias por sprint) durante o ciclo do Projeto Aplicado, um Produto Mínimo Viável (MVP) da aplicação *Organizer App*, provido de arquitetura híbrida (mapeamento semântico de schema e intenções via modelo de linguagem e ordenação algorítmica determinística local) e interface web responsiva, capaz de:
 > 1. **(S - Específico):** Ingerir planilhas heterogêneas no formato `.xlsx`, ignorar automaticamente preâmbulos de relatórios institucionais via detecção heurística de cabeçalho, interpretar comandos de organização em português corrente e gerar uma planilha padronizada e ordenada com política de descarte imediato de arquivos temporários.
 > 2. **(M - Mensurável):** Processar pastas de trabalho de até 10.000 linhas em menos de 15 segundos, alcançando taxa de acerto no mapeamento semântico de cabeçalhos $\ge 90\%$, índice de interpretação correta de comandos em linguagem natural $\ge 92\%$, garantia matemática estrita de integridade de 100% dos dados numéricos (zero alucinação) e redução do tempo de manipulação manual $\ge 70\%$ nos testes com usuários.
 > 3. **(A - Atingível):** Viabilizar a solução através de bibliotecas estáveis de processamento tabular em Python combinadas com chamadas estruturadas de API de IA restritas a metadados, operando com custo computacional inferior a R$ 0,01 por execução e escopo modular factível.
 > 4. **(R - Relevante):** Eliminar o desperdício de 30% a 40% da jornada de trabalho de analistas de negócios consumida em formatação braçal de dados, prevenindo prejuízos financeiros causados por erros humanos em planilhas e assegurando conformidade rigorosa com a LGPD.
-> 5. **(T - Temporal):** Concluir a implementação e validação experimental ao longo de 3 Sprints estruturadas (Sprint 1: Motor Central e Segurança; Sprint 2: Consolidação e Validação Humana; Sprint 3: Add-in e Homologação com Personas) até o encerramento do ciclo do Projeto Aplicado."
+> 5. **(T - Temporal):** Concluir a implementação e validação experimental no horizonte estrito de 21 dias, distribuídos em 3 Sprints semanais de 7 dias cada (Sprint 1: Motor Central e Segurança; Sprint 2: Consolidação e Validação Humana; Sprint 3: Canais Nativos e Homologação com Personas) durante o ciclo do Projeto Aplicado."
 

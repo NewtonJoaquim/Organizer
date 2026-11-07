@@ -91,31 +91,32 @@ Os requisitos foram levantados e consolidados com base nas dores operacionais da
 
 ---
 
-## 3. Planejamento das 3 Sprints de Desenvolvimento
+## 3. Planejamento das 3 Sprints de Desenvolvimento (Ciclo de 21 Dias)
 
-O projeto é estruturado em **3 Sprints ágeis** de duração média de 2 semanas cada, cobrindo o horizonte temporal de **6 a 8 semanas** estabelecido no Objetivo SMART:
+O projeto é estruturado em **3 Sprints ágeis semanais de 7 dias cada**, totalizando um ciclo estrito de **21 dias corridos de execução**, em perfeita consonância com o Objetivo SMART:
 
-```mermaid
+`mermaid
 gantt
-    title Linha do Tempo de Execução do Projeto Aplicado (3 Sprints)
+    title Linha do Tempo de Execução do Projeto Aplicado (21 Dias / 3 Sprints)
     dateFormat  YYYY-MM-DD
-    section Sprint 1: Núcleo e Segurança
-    Setup de Arquitetura e Ingestão Multipart      :active, s1_1, 2026-11-02, 5d
-    Algoritmo Heurístico de Cabeçalhos             :s1_2, after s1_1, 4d
-    Orquestrador de IA e Parser Semântico          :s1_3, after s1_1, 5d
-    Motor Determinístico e Ordenação Local         :s1_4, after s1_3, 4d
-    Rotina de Retenção Zero e Testes Unitários     :s1_5, after s1_4, 3d
-    section Sprint 2: Consolidação e UX
-    Algoritmo de Merge Multi-Abas Heterogêneas     :s2_1, 2026-11-23, 5d
-    Interface Web com Preview (Antes x Depois)     :s2_2, after s2_1, 5d
-    Mecanismo Human-in-the-Loop e Score Confiança  :s2_3, after s2_2, 4d
-    Tratamento de Tipos de Dados Brasileiros       :s2_4, after s2_2, 3d
-    section Sprint 3: Canais e Homologação
-    Prototipação de Suplemento Excel Add-in        :s3_1, 2026-12-07, 5d
-    Bateria de Testes com as Personas              :s3_2, after s3_1, 5d
-    Auditoria das Métricas SMART e SLA             :s3_3, after s3_2, 3d
-    Consolidação de Relatório e Apresentação Pitch :s3_4, after s3_3, 4d
-```
+    axisFormat  %d/%m
+    section Sprint 1: Núcleo e Segurança (Dias 1 a 7)
+    Setup de Arquitetura e Ingestão Multipart      :active, s1_1, 2026-11-02, 2d
+    Algoritmo Heurístico de Cabeçalhos             :s1_2, after s1_1, 2d
+    Orquestrador de IA e Parser Semântico          :s1_3, after s1_1, 3d
+    Motor Determinístico e Ordenação Local         :s1_4, after s1_3, 2d
+    Rotina de Retenção Zero e Testes Unitários     :s1_5, after s1_4, 1d
+    section Sprint 2: Consolidação e UX (Dias 8 a 14)
+    Algoritmo de Merge Multi-Abas Heterogêneas     :s2_1, 2026-11-09, 3d
+    Interface Web com Preview (Antes x Depois)     :s2_2, 2026-11-09, 3d
+    Mecanismo Human-in-the-Loop e Score Confiança  :s2_3, after s2_2, 2d
+    Tratamento de Tipos de Dados Brasileiros       :s2_4, after s2_1, 2d
+    section Sprint 3: Canais e Homologação (Dias 15 a 21)
+    Prototipação de Suplemento Excel Add-in        :s3_1, 2026-11-16, 2d
+    Bateria de Testes com as Personas              :s3_2, after s3_1, 2d
+    Auditoria das Métricas SMART e SLA             :s3_3, after s3_2, 2d
+    Consolidação de Relatório e Apresentação Pitch :s3_4, after s3_3, 1d
+`
 
 ---
 
@@ -128,7 +129,7 @@ Abaixo estão detalhados os cartões de trabalho prontos para exportação e aco
 
 ---
 
-### 4.1. SPRINT 1: Núcleo da Solução, IA Semântica e Segurança
+### 4.1. SPRINT 1: Núcleo da Solução, IA Semântica e Segurança (Dias 1 a 7 - Semana 1)
 * **Meta da Sprint:** Desenvolver e testar o núcleo de processamento capaz de ingerir planilhas brutas com ruídos, interpretar o comando em linguagem natural, ordenar os dados localmente com 100% de integridade matemática e descartar arquivos temporários com segurança.
 * **Hipóteses Validadas:** H6 (Determinismo), H1 (Mapeamento Semântico), H9 (Zero Data Retention), H4 (Linguagem Natural), H3 (Ingestão Tolerante) e H2 (Heurística de Cabeçalho).
 
@@ -198,7 +199,7 @@ Abaixo estão detalhados os cartões de trabalho prontos para exportação e aco
 
 ---
 
-### 4.2. SPRINT 2: Consolidação Multi-Abas, Interface e Validação Humana
+### 4.2. SPRINT 2: Consolidação Multi-Abas, Interface e Validação Humana (Dias 8 a 14 - Semana 2)
 * **Meta da Sprint:** Expandir o poder de manipulação com suporte a junção inteligente de abas (merge), enriquecer o pré-tratamento de formatos brasileiros e disponibilizar a interface web com tela de pré-visualização comparativa e aprovação humana.
 * **Hipóteses Validadas:** H8 (Merge de Abas) e H7 (Human-in-the-Loop com Preview).
 
@@ -254,7 +255,7 @@ Abaixo estão detalhados os cartões de trabalho prontos para exportação e aco
 
 ---
 
-### 4.3. SPRINT 3: Canais Nativos, Homologação com Personas e Pitch
+### 4.3. SPRINT 3: Canais Nativos, Homologação com Personas e Pitch (Dias 15 a 21 - Semana 3)
 * **Meta da Sprint:** Prototipar o suplemento integrado para Microsoft Excel (Add-in), realizar baterias de testes práticos com arquivos reais das personas, auditar o cumprimento das métricas SMART e consolidar os artefatos acadêmicos.
 * **Hipóteses Validadas:** H5 (Suplemento Nativo Excel Add-in) e homologação geral das metas SMART.
 

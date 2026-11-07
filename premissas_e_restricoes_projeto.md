@@ -39,7 +39,7 @@ As restrições representam os limites e fronteiras rígidas que delimitam o que
 
 ### 3.1. Restrições Temporais (Cronograma Acadêmico)
 * **Prazo Fixo de Entrega:** O projeto deve ser planejado, implementado, testado e documentado rigorosamente dentro do prazo limite do ciclo acadêmico do Projeto Aplicado.
-* **Alocação por Sprints:** O desenvolvimento deve ser estruturado e finalizado no horizonte de **3 Sprints ágeis** (duração média de 2 semanas por sprint, totalizando 6 a 8 semanas).
+* **Alocação por Sprints:** O desenvolvimento deve ser estruturado e finalizado no horizonte fechado de **21 dias corridos**, distribuídos em **3 Sprints ágeis semanais de 7 dias cada**.
 * **Entregas Modulares Obrigatórias:** A Sprint 1 deve focar no núcleo de processamento e segurança; a Sprint 2 na consolidação de abas e validação humana; e a Sprint 3 na prototipação de canal (Add-in) e validação experimental com as personas.
 
 ### 3.2. Restrições Orçamentárias e Financeiras
@@ -136,7 +136,7 @@ Para consolidação visual e rápida consulta durante o preenchimento da seção
 | :--- | :--- | :--- |
 | **Tecnologia & IA** | • APIs de IA externas manterão alta disponibilidade e suporte a saídas estruturadas.<br>• Modelos de linguagem conseguem interpretar linguagem natural em português com precisão. | • Sem orçamento para servidores dedicados ou GPUs locais.<br>• Obrigatório uso exclusivo de metadados para mitigar custos de API. |
 | **Dados & Formato** | • Arquivos de entrada são pastas de trabalho tabulares (`.xlsx`/`.xls`) geradas por ERPs ou usuários.<br>• Colunas contêm dados compatíveis para normalização de cabeçalhos. | • Volume máximo por arquivo limitado a 10.000 linhas e 20 MB no MVP.<br>• Suporte inicial restrito a formatos Excel (sem suporte a PDFs/OCR). |
-| **Prazo & Entrega** | • Três sprints de desenvolvimento são suficientes para testar o MVP da solução.<br>• As métricas de acurácia serão atingíveis no ciclo acadêmico. | • Conclusão mandatória até o fim do curso (6 a 8 semanas).<br>• Equipe unipessoal com limite semanal de 15 a 20 horas de dedicação. |
+| **Prazo & Entrega** | • Três sprints de desenvolvimento são suficientes para testar o MVP da solução.<br>• As métricas de acurácia serão atingíveis no ciclo acadêmico. | • Conclusão mandatória no ciclo de 21 dias (3 sprints semanais de 7 dias).<br>• Equipe unipessoal com limite semanal de 15 a 20 horas de dedicação. |
 | **Segurança & Legal** | • Parceiros corporativos aceitam a ingestão de metadados se houver garantia de retenção zero.<br>• A arquitetura atende às exigências de privacidade das PMEs. | • Conformidade mandatória com a LGPD (Lei 13.709/2018).<br>• Proibição de armazenamento persistente de dados sensíveis em banco de dados. |
 | **Canais & Mercado** | • A ferramenta será utilizada por profissionais sem conhecimento em código (*Citizen Data Scientists*).<br>• Suplementos Office JS são viáveis em estações Windows/Web. | • Canal primário garantido via aplicação web autônoma caso haja restrição de instalação de add-in pela TI das empresas parceiras. |
 
