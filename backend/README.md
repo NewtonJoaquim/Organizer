@@ -9,21 +9,27 @@ backend/
 ├── app/
 │   ├── api/
 │   │   ├── endpoints/
-│   │   │   └── upload.py        # Endpoint POST /api/upload e DELETE /api/upload/{file_id}
+│   │   │   ├── upload.py        # Endpoints POST /api/upload e DELETE /api/upload/{file_id}
+│   │   │   └── inspect.py       # Endpoint POST /api/inspect/headers (Detecção Heurística)
 │   │   └── routes.py            # Roteador central e Healthcheck
 │   ├── core/
 │   │   ├── config.py            # Variáveis de ambiente e regras de negócio (Pydantic Settings)
 │   │   └── security.py          # Sanitização contra Path Traversal e validação de Magic Bytes
 │   ├── schemas/
-│   │   └── upload.py            # Modelos Pydantic de entrada e saída
+│   │   ├── upload.py            # Modelos Pydantic de entrada e saída de upload
+│   │   └── header.py            # Modelos Pydantic para resultados de detecção de cabeçalho
 │   ├── services/
-│   │   └── file_service.py      # Gerenciamento de armazenamento temporário isolado e expurgo (TTL)
+│   │   ├── file_service.py      # Gerenciamento de armazenamento temporário isolado e expurgo (TTL)
+│   │   └── header_detector.py   # Algoritmo heurístico de detecção de cabeçalhos (RF-02 / RN-03)
 │   └── main.py                  # Instância da aplicação FastAPI e middlewares (CORS)
 ├── storage/
 │   └── temp/                    # Diretório isolado para uploads temporários (Zero Retention)
 ├── tests/
+│   ├── fixtures/
+│   │   └── 2_SERIE_NATAL.xlsx   # Planilha corporativa real de validação da persona Carlos
 │   ├── conftest.py              # Fixtures com geração de planilhas .xlsx e .xls em memória
-│   └── test_upload.py           # Suíte de testes automatizados unitários e de integração
+│   ├── test_upload.py           # Suíte de testes automatizados de ingestão
+│   └── test_header_detector.py  # Suíte de testes do algoritmo heurístico
 └── pyproject.toml               # Configuração do projeto e dependências
 ```
 
