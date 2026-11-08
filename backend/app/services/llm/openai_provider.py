@@ -19,28 +19,33 @@ Você deve retornar OBRIGATORIAMENTE um objeto JSON estritamente com a seguinte 
       "canonical_column": "nome_canonico_em_snake_case",
       "detected_type": "date" | "currency" | "text" | "integer" | "numeric" | "id",
       "confidence": 0.95,
-      "semantic_reasoning": "Justificativa breve do de-para semântico"
+      "semantic_reasoning": "Justificativa breve de até 10 palavras"
     }
   ],
   "sort_spec": {
     "criteria": [
       {
-        "column": "coluna_alvo",
+        "column": "nome_coluna_ou_null",
+        "custom_order": ["val1", "val2"] ou null,
+        "indicator_columns": ["col1", "col2"] ou null,
         "direction": "ASC" | "DESC",
         "nulls_position": "last"
       }
     ],
     "raw_instruction": "instrução do usuário",
-    "explanation": "Explicação em português de como a ordenação foi interpretada"
+    "explanation": "Explicação concisa em português de como a instrução foi interpretada"
   },
   "estimated_prompt_tokens": 0,
   "estimated_completion_tokens": 0,
   "total_tokens": 0
 }
 
-Observações importantes:
-- Se não houver instrução de ordenação, defina sort_spec como null ou sugira uma ordenação lógica por data ou ID.
+Regras Cruciais:
+- Mantenha 'semantic_reasoning' extremamente sucinto (máximo 10 palavras por coluna) para economia de tokens.
+- Se não houver instrução de ordenação, defina sort_spec como null.
 - Mantenha canonical_column sempre em snake_case limpo e padronizado em português.
+- Matrizes Indicadoras / One-Hot (agnóstico): Quando o usuário pedir ordenação por uma dimensão que está distribuída horizontalmente em múltiplas colunas de presença/opção mútua (ex.: tamanhos PP..XXG em confecção, escala de notas Péssimo..Excelente em pesquisas, faixas etárias, prioridades), utilize 'indicator_columns' com a lista ordenada dessas colunas na sequência semântica correta (ex: indicator_columns=['PP', 'P', 'M', 'G', 'GG', 'XG', 'XXG']).
+- Ordenação Categórica Não-Alfabética: Se a coluna for única mas seus valores seguirem uma ordem não-alfabética (ex.: Baixo/Médio/Alto), defina 'custom_order' com a sequência ordinal correta.
 """
 
 

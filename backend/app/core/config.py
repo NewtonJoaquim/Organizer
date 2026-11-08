@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     OPENAI_BASE_URL: str | None = None
     GEMINI_API_KEY: str | None = None
     GEMINI_MODEL: str = "gemini-1.5-flash"
-    MAX_TOKENS_PER_CALL: int = 800  # RNF-04: teto de tokens
+    MAX_TOKENS_PER_CALL: int = 2000  # Teto de tokens para evitar truncamento de JSON estruturado
 
     # CORS
     BACKEND_CORS_ORIGINS: list[str] = [
