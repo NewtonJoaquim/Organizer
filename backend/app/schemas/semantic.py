@@ -116,3 +116,68 @@ class SemanticOrchestratorResponse(BaseModel):
         ...,
         description="Tempo de processamento da orquestração em milissegundos.",
     )
+
+
+class MultiSheetSemanticRequest(BaseModel):
+    sheets: dict[str, list[str]] = Field(
+        ...,
+        description="Dicionário com os nomes das abas e suas respectivas colunas (metadados). Nenhuma linha sensível (RN-01).",
+        json_schema_extra={
+            "example": {
+                "Janeiro": ["Data Movimento", "Histórico", "Valor R$", "Saldo"],
+                "Fevereiro": ["Data", "Descrição", "Valor", "Saldo"],
+            }
+        },
+    )
+    user_instruction: str | None = Field(
+        default=None,
+        description="Instrução em português corrente para unificação e ordenação (ex.: 'Consolidar abas mensais e ordenar por data').",
+    )
+    domain_hint: str | None = Field(
+        default=None,
+        description="Dica contextual opcional do segmento corporativo.",
+    )
+
+
+class MultiSheetMappingProposal(BaseModel):
+    domain_detected: str = Field(
+        ...,
+        description="Domínio corporativo inferido (Financeiro, Vendas, Logística, RH, Confecção, Geral).",
+    )
+    sheet_mappings: dict[str, list[ColumnMapping]] = Field(
+        ...,
+        description="Mapeamento individual de de-para para cada aba informada.",
+    )
+    unified_canonical_columns: list[str] = Field(
+        ...,
+        description="Lista consolidada e unificada de colunas canônicas alinhadas entre todas as abas.",
+    )
+    sort_spec: SortSpec | None = Field(
+        default=None,
+        description="Especificação formal de ordenação para a tabela consolidada final.",
+    )
+    estimated_prompt_tokens: int = Field(
+        ...,
+        description="Contagem de tokens do prompt de metadados multi-abas.",
+    )
+    estimated_completion_tokens: int = Field(
+        ...,
+        description="Contagem de tokens da saída estruturada multi-abas.",
+    )
+    total_tokens: int = Field(
+        ...,
+        description="Total de tokens consumidos na inferência multi-abas.",
+    )
+
+
+class MultiSheetSemanticResponse(BaseModel):
+    proposal: MultiSheetMappingProposal = Field(..., description="Proposta estruturada de consolidação e alinhamento multi-abas.")
+    metadata_only_compliance: bool = Field(
+        default=True,
+        description="Garantia formal de conformidade com RN-01 e LGPD (Zero Data Retention / Metadados exclusivos).",
+    )
+    processing_time_ms: float = Field(
+        ...,
+        description="Tempo de processamento da orquestração multi-abas em milissegundos.",
+    )
+

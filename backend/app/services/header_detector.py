@@ -3,7 +3,7 @@ from typing import Any
 import openpyxl
 import xlrd
 from fastapi import HTTPException, status
-from app.schemas.header import HeaderDetectionResult
+from app.schemas.header import HeaderDetectionResult, WorkbookInspectionResult
 
 MAX_INSPECTION_ROWS = 15
 CONFIDENCE_THRESHOLD = 0.70  # Conforme RN-03
@@ -294,6 +294,47 @@ class HeaderDetectorService:
             sheet_name=target_sheet,
             available_sheets=all_sheets,
             warning_message=warning,
+        )
+
+    def get_available_sheets(self, file_path: Path) -> list[str]:
+        """Obtém a lista de todas as abas presentes na pasta de trabalho (.xlsx ou .xls)."""
+        ext = file_path.suffix.lower()
+        if ext == ".xlsx":
+            wb = openpyxl.load_workbook(file_path, read_only=True)
+            sheet_names = list(wb.sheetnames)
+            wb.close()
+            return sheet_names
+        elif ext == ".xls":
+            book = xlrd.open_workbook(str(file_path), on_demand=True)
+            return list(book.sheet_names())
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Extensão '{ext}' não suportada para leitura de abas.",
+            )
+
+    def inspect_workbook(self, file_path: Path, file_id: str) -> WorkbookInspectionResult:
+        """
+        Inspeciona heurísticamente todas as abas da pasta de trabalho informada (RF-06).
+        Retorna o resultado de detecção de cabeçalho para cada aba individualmente.
+        """
+        all_sheets = self.get_available_sheets(file_path)
+        if not all_sheets:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="A pasta de trabalho não contém abas válidas.",
+            )
+
+        results: list[HeaderDetectionResult] = []
+        for sheet_name in all_sheets:
+            detection = self.detect_header(file_path, sheet_name=sheet_name)
+            results.append(detection)
+
+        return WorkbookInspectionResult(
+            file_id=file_id,
+            total_sheets=len(all_sheets),
+            sheet_names=all_sheets,
+            sheets=results,
         )
 
 

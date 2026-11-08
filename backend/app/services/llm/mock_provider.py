@@ -3,6 +3,7 @@ from typing import Any
 from app.schemas.semantic import (
     ColumnMapping,
     MappingProposal,
+    MultiSheetMappingProposal,
     NullsPosition,
     SortCriterion,
     SortDirection,
@@ -158,6 +159,71 @@ class MockLLMProvider(BaseLLMProvider):
             estimated_completion_tokens=completion_tokens,
             total_tokens=total_tokens,
         )
+
+    async def generate_multi_sheet_mapping_proposal(
+        self,
+        sheets: dict[str, list[str]],
+        instruction: str | None = None,
+        domain_hint: str | None = None,
+    ) -> MultiSheetMappingProposal:
+        sheet_mappings: dict[str, list[ColumnMapping]] = {}
+        all_canonical_cols: list[str] = []
+        domain_counts: dict[str, int] = {
+            "Financeiro": 0,
+            "Vendas": 0,
+            "Logística": 0,
+            "RH": 0,
+            "Confecção": 0,
+        }
+        total_prompt_tokens = 60
+        total_completion_tokens = 60
+
+        for sheet_name, cols in sheets.items():
+            mappings: list[ColumnMapping] = []
+            for col in cols:
+                normalized_key = self._normalize_col(col)
+                if normalized_key in SEMANTIC_TAXONOMY:
+                    canon_name, d_type, conf, reason = SEMANTIC_TAXONOMY[normalized_key]
+                    self._increment_domain(normalized_key, domain_counts)
+                else:
+                    canon_name, d_type, conf, reason = self._infer_general_column(col)
+
+                if canon_name not in all_canonical_cols:
+                    all_canonical_cols.append(canon_name)
+
+                mappings.append(
+                    ColumnMapping(
+                        original_column=col,
+                        canonical_column=canon_name,
+                        detected_type=d_type,
+                        confidence=conf,
+                        semantic_reasoning=reason,
+                    )
+                )
+            sheet_mappings[sheet_name] = mappings
+            total_prompt_tokens += 10 + len(" ".join(cols)) // 3
+            total_completion_tokens += len(mappings) * 18
+
+        domain_detected = domain_hint or self._select_predominant_domain(domain_counts)
+
+        # Interpreta comando em linguagem natural se fornecido
+        sort_spec = None
+        if instruction and instruction.strip():
+            combined_mappings = [m for m_list in sheet_mappings.values() for m in m_list]
+            sort_spec = self._parse_natural_language_sort(instruction.strip(), combined_mappings)
+
+        total_tokens = total_prompt_tokens + total_completion_tokens
+
+        return MultiSheetMappingProposal(
+            domain_detected=domain_detected,
+            sheet_mappings=sheet_mappings,
+            unified_canonical_columns=all_canonical_cols,
+            sort_spec=sort_spec,
+            estimated_prompt_tokens=total_prompt_tokens,
+            estimated_completion_tokens=total_completion_tokens,
+            total_tokens=total_tokens,
+        )
+
 
     @staticmethod
     def _normalize_col(col: str) -> str:

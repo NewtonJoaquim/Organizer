@@ -47,3 +47,18 @@ class HeaderDetectionResult(BaseModel):
 class InspectHeadersRequest(BaseModel):
     file_id: str = Field(..., description="UUID do arquivo previamente armazenado temporariamente")
     sheet_name: str | None = Field(default=None, description="Nome opcional da aba. Se omitido, usa a ativa/primeira.")
+
+
+class WorkbookInspectionRequest(BaseModel):
+    file_id: str = Field(..., description="UUID do arquivo previamente armazenado temporariamente")
+
+
+class WorkbookInspectionResult(BaseModel):
+    file_id: str = Field(..., description="UUID do arquivo inspecionado.")
+    total_sheets: int = Field(..., description="Quantidade total de abas na pasta de trabalho.")
+    sheet_names: list[str] = Field(..., description="Nomes de todas as abas disponíveis.")
+    sheets: list[HeaderDetectionResult] = Field(
+        ...,
+        description="Resultados da inspeção heurística de cada uma das abas.",
+    )
+

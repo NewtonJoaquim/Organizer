@@ -6,6 +6,8 @@ from starlette.background import BackgroundTask
 
 from app.core.config import settings
 from app.schemas.process import (
+    ConsolidateSheetsRequest,
+    ConsolidateSheetsResponse,
     ProcessSpreadsheetRequest,
     ProcessSpreadsheetResponse,
 )
@@ -28,6 +30,23 @@ router = APIRouter(prefix="/process", tags=["Processamento Determinístico e Ord
 )
 async def process_spreadsheet(request: ProcessSpreadsheetRequest) -> ProcessSpreadsheetResponse:
     return deterministic_engine.process(request)
+
+
+@router.post(
+    "/consolidate",
+    response_model=ConsolidateSheetsResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Consolidação e merge determinístico de múltiplas abas heterogêneas (RF-06)",
+    description=(
+        "Identifica e lê todas as abas (ou subconjunto especificado) de uma pasta de trabalho .xlsx ou .xls. "
+        "Aplica o mapeamento semântico canônico individualmente em cada aba, concatena verticalmente "
+        "as linhas alinhando colunas sem duplicação de schema, insere a coluna identificadora da aba de origem "
+        "e audita a integridade matemática estrita (RNF-02)."
+    ),
+)
+async def consolidate_sheets(request: ConsolidateSheetsRequest) -> ConsolidateSheetsResponse:
+    return deterministic_engine.consolidate(request)
+
 
 
 @router.get(

@@ -1,6 +1,8 @@
 import time
 from fastapi import HTTPException, status
 from app.schemas.semantic import (
+    MultiSheetSemanticRequest,
+    MultiSheetSemanticResponse,
     SemanticOrchestratorRequest,
     SemanticOrchestratorResponse,
 )
@@ -60,6 +62,49 @@ class SemanticOrchestratorService:
             metadata_only_compliance=True,
             processing_time_ms=elapsed_ms,
         )
+
+    async def orchestrate_multi_sheet(
+        self, request: MultiSheetSemanticRequest
+    ) -> MultiSheetSemanticResponse:
+        if not request.sheets:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="O dicionário de abas e colunas não pode ser vazio.",
+            )
+
+        # Validação estrita de isolamento de dados sensíveis (RN-01 / RNF-03)
+        for sheet_name, cols in request.sheets.items():
+            if not cols:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"A aba '{sheet_name}' não possui colunas para mapeamento semântico.",
+                )
+            for col in cols:
+                if len(col) > 150:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=(
+                            f"Violação de governança LGPD (RN-01) na aba '{sheet_name}': A coluna contém "
+                            f"string excessivamente longa que aparenta ser dado sensível."
+                        ),
+                    )
+
+        start_time = time.perf_counter()
+
+        proposal = await self.provider.generate_multi_sheet_mapping_proposal(
+            sheets=request.sheets,
+            instruction=request.user_instruction,
+            domain_hint=request.domain_hint,
+        )
+
+        elapsed_ms = round((time.perf_counter() - start_time) * 1000, 2)
+
+        return MultiSheetSemanticResponse(
+            proposal=proposal,
+            metadata_only_compliance=True,
+            processing_time_ms=elapsed_ms,
+        )
+
 
 
 semantic_orchestrator = SemanticOrchestratorService()
