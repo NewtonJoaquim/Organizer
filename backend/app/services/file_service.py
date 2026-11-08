@@ -1,8 +1,11 @@
+import json
+import logging
 import shutil
 import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 from fastapi import HTTPException, UploadFile, status
 
 from app.core.config import settings
@@ -14,15 +17,96 @@ from app.core.security import (
 from app.schemas.upload import UploadResponse
 
 CHUNK_SIZE = 64 * 1024  # 64 KB por chunk
+logger = logging.getLogger("organizer.lgpd")
 
 
 class FileService:
     def __init__(self, temp_dir: Path | None = None) -> None:
         self.temp_dir = temp_dir or settings.TEMP_STORAGE_DIR
+        self._associations: dict[str, str] = {}
         self._ensure_temp_dir()
 
     def _ensure_temp_dir(self) -> None:
         self.temp_dir.mkdir(parents=True, exist_ok=True)
+
+    def count_active_directories(self) -> int:
+        """Retorna a contagem de diretórios temporários ativos em disco."""
+        if not self.temp_dir.exists():
+            return 0
+        return sum(1 for item in self.temp_dir.iterdir() if item.is_dir())
+
+    def associate_files(self, processed_file_id: str, original_file_id: str) -> None:
+        """
+        Registra a correlação entre o arquivo processado e seu arquivo de upload original,
+        permitindo a destruição atômica conjunta após o download (Zero Data Retention).
+        """
+        self._associations[processed_file_id] = original_file_id
+        target_dir = self.temp_dir / processed_file_id
+        if target_dir.exists():
+            meta_path = target_dir / "meta.json"
+            try:
+                meta_path.write_text(
+                    json.dumps({
+                        "processed_file_id": processed_file_id,
+                        "original_file_id": original_file_id,
+                        "created_at": datetime.now(timezone.utc).isoformat(),
+                    }),
+                    encoding="utf-8",
+                )
+            except Exception as e:
+                logger.warning(f"Falha ao persistir metadados de ciclo de vida em {target_dir}: {e}")
+
+    def get_associated_file(self, processed_file_id: str) -> str | None:
+        """Recupera o ID do upload original associado ao arquivo processado."""
+        if processed_file_id in self._associations:
+            return self._associations[processed_file_id]
+
+        meta_path = self.temp_dir / processed_file_id / "meta.json"
+        if meta_path.exists():
+            try:
+                data = json.loads(meta_path.read_text(encoding="utf-8"))
+                orig_id = data.get("original_file_id")
+                if orig_id:
+                    self._associations[processed_file_id] = orig_id
+                    return orig_id
+            except Exception:
+                pass
+        return None
+
+    def cleanup_workflow(self, processed_file_id: str) -> dict[str, Any]:
+        """
+        Expurga imediatamente os resíduos em disco após a conclusão do download pelo cliente (DoD TSK-S1-05).
+        Remove tanto o arquivo processado (.xlsx) quanto o arquivo bruto original de upload.
+        Garante conformidade estrita com Zero Data Retention (RN-04 e RNF-03).
+        """
+        orig_file_id = self.get_associated_file(processed_file_id)
+
+        # 1. Remove diretório processado
+        proc_dir = (self.temp_dir / processed_file_id).resolve()
+        if proc_dir.exists() and proc_dir.is_relative_to(self.temp_dir.resolve()):
+            shutil.rmtree(proc_dir, ignore_errors=True)
+
+        # 2. Remove diretório de upload original se associado
+        if orig_file_id:
+            orig_dir = (self.temp_dir / orig_file_id).resolve()
+            if orig_dir.exists() and orig_dir.is_relative_to(self.temp_dir.resolve()):
+                shutil.rmtree(orig_dir, ignore_errors=True)
+            self._associations.pop(processed_file_id, None)
+
+        remaining = self.count_active_directories()
+
+        logger.info(
+            f"[LGPD-AUDIT] Descarte imediato pós-download concluído. "
+            f"processed_file_id='{processed_file_id}', original_file_id='{orig_file_id}'. "
+            f"Diretórios ativos restantes em disco: {remaining}."
+        )
+
+        return {
+            "processed_file_id": processed_file_id,
+            "original_file_id": orig_file_id,
+            "remaining_directories": remaining,
+            "zero_data_retention": remaining == 0,
+        }
 
     async def save_upload_file(self, file: UploadFile) -> UploadResponse:
         """
@@ -129,6 +213,7 @@ class FileService:
     def purge_expired_files(self, ttl_minutes: int | None = None) -> int:
         """
         Remove arquivos temporários que ultrapassaram o tempo limite de vida (RN-04: TTL 15 minutos).
+        Gera evidência auditável nos logs da governança LGPD.
         """
         ttl_seconds = (ttl_minutes or settings.TEMP_FILE_TTL_MINUTES) * 60
         now = time.time()
@@ -139,10 +224,21 @@ class FileService:
 
         for item in self.temp_dir.iterdir():
             if item.is_dir():
-                mtime = item.stat().st_mtime
-                if (now - mtime) > ttl_seconds:
-                    shutil.rmtree(item, ignore_errors=True)
-                    purged += 1
+                try:
+                    mtime = item.stat().st_mtime
+                    if (now - mtime) > ttl_seconds:
+                        shutil.rmtree(item, ignore_errors=True)
+                        purged += 1
+                        logger.info(f"[LGPD-TTL-PURGE] Diretório expirado expurgado: '{item.name}'.")
+                except Exception as e:
+                    logger.warning(f"Erro ao purgar diretório expirado '{item.name}': {e}")
+
+        remaining = self.count_active_directories()
+        if purged > 0:
+            logger.info(
+                f"[LGPD-AUDIT] Rotina periódica TTL concluída: {purged} diretórios expurgados. "
+                f"Diretórios restantes em disco: {remaining}."
+            )
 
         return purged
 

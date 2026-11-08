@@ -222,6 +222,10 @@ def test_process_and_download_api_endpoints(client: TestClient) -> None:
     download_res_404 = client.get("/api/process/download/id-inexistente")
     assert download_res_404.status_code == 404
 
+    # 4. Segundo download do mesmo arquivo deve retornar 404 (expurgado imediatamente após o primeiro streaming)
+    second_download = client.get(f"/api/process/download/{processed_id}")
+    assert second_download.status_code == 404
+
 
 def test_process_shirt_size_indicator_sort_matches_manual_ground_truth() -> None:
     """
