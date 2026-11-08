@@ -406,6 +406,9 @@ class DeterministicEngineService:
 
         self.export_formatted_excel(final_df, output_file_path, sheet_title=sheet_name)
 
+        # Associa o arquivo processado ao upload original para expurgo simultâneo pós-download (LGPD / Zero Retention)
+        file_service.associate_files(processed_file_id, request.file_id)
+
         elapsed_ms = round((time.perf_counter() - start_time) * 1000, 2)
 
         return ProcessSpreadsheetResponse(

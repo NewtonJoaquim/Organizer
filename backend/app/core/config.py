@@ -22,6 +22,8 @@ class Settings(BaseSettings):
     BASE_DIR: Path = Path(__file__).resolve().parent.parent.parent
     TEMP_STORAGE_DIR: Path = BASE_DIR / "storage" / "temp"
     TEMP_FILE_TTL_MINUTES: int = 15
+    CLEANUP_WORKER_INTERVAL_SECONDS: int = 60
+    ENABLE_CLEANUP_WORKER: bool = True
 
     # Configuração do Orquestrador Semântico / LLM (RF-03, RF-04, RNF-04)
     LLM_PROVIDER: str = "auto"  # "auto", "openai", "gemini", "mock"
