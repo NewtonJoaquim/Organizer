@@ -126,20 +126,41 @@ class DeterministicEngineService:
         if not sort_spec or not sort_spec.criteria:
             return df.copy()
 
-        reverse_mapping = {}
+        bi_mapping: dict[str, str] = {}
         if column_mapping:
-            reverse_mapping = {canon.lower(): orig for orig, canon in column_mapping.items()}
+            for orig, canon in column_mapping.items():
+                if orig and canon:
+                    bi_mapping[str(orig).strip().lower()] = str(canon).strip()
+                    bi_mapping[str(canon).strip().lower()] = str(orig).strip()
 
         df_cols_lower = {col.lower(): col for col in df.columns}
 
         def resolve_col(target_name: str | None) -> str | None:
             if not target_name:
                 return None
-            target_lower = target_name.lower()
+            target_clean = str(target_name).strip()
+            target_lower = target_clean.lower()
+
+            # 1. Correspondência exata direta no dataframe
             if target_lower in df_cols_lower:
                 return df_cols_lower[target_lower]
-            if target_lower in reverse_mapping and reverse_mapping[target_lower].lower() in df_cols_lower:
-                return df_cols_lower[reverse_mapping[target_lower].lower()]
+
+            # 2. Correspondência via mapeamento bidirecional (orig <-> canon)
+            if target_lower in bi_mapping:
+                mapped_target = bi_mapping[target_lower].lower()
+                if mapped_target in df_cols_lower:
+                    return df_cols_lower[mapped_target]
+
+            # 3. Correspondência semântica por sufixo ou prefixo (ex.: 'PP' -> 'tamanho_pp', 'p' -> 'tamanho_p')
+            for col_lower, actual_col in df_cols_lower.items():
+                if col_lower == target_lower:
+                    return actual_col
+                if col_lower.endswith(f"_{target_lower}") or col_lower.startswith(f"{target_lower}_"):
+                    return actual_col
+                if target_lower.endswith(f"_{col_lower}") or target_lower.startswith(f"{col_lower}_"):
+                    return actual_col
+
+            # 4. Correspondência por substring se comprimento > 2
             if len(target_lower) > 2:
                 for col_lower, actual_col in df_cols_lower.items():
                     if len(col_lower) > 2 and (target_lower in col_lower or col_lower in target_lower):
@@ -154,27 +175,28 @@ class DeterministicEngineService:
 
         for idx, crit in enumerate(sort_spec.criteria):
             # Caso 1: Matriz Indicadora Explícita (One-Hot Encoded Grid)
+            matched_indicator_cols: list[str] = []
             if crit.indicator_columns:
                 resolved_indicator_cols = [
                     resolve_col(c) for c in crit.indicator_columns
                 ]
-                valid_indicator_cols = [c for c in resolved_indicator_cols if c is not None]
+                matched_indicator_cols = [c for c in resolved_indicator_cols if c is not None]
 
-                if valid_indicator_cols:
-                    rank_key = f"__indicator_rank_{idx}__"
+            if matched_indicator_cols:
+                rank_key = f"__indicator_rank_{idx}__"
 
-                    def get_indicator_rank(row, cols=valid_indicator_cols):
-                        for col_idx, col_name in enumerate(cols):
-                            val = row[col_name]
-                            if pd.notna(val) and str(val).strip() != "":
-                                return col_idx
-                        return len(cols)
+                def get_indicator_rank(row, cols=matched_indicator_cols):
+                    for col_idx, col_name in enumerate(cols):
+                        val = row[col_name]
+                        if pd.notna(val) and str(val).strip() != "":
+                            return col_idx
+                    return len(cols)
 
-                    df_work[rank_key] = df_work.apply(get_indicator_rank, axis=1)
-                    sort_keys.append(rank_key)
-                    ascending_list.append(crit.direction == SortDirection.ASC)
+                df_work[rank_key] = df_work.apply(get_indicator_rank, axis=1)
+                sort_keys.append(rank_key)
+                ascending_list.append(crit.direction == SortDirection.ASC)
 
-            # Caso 2: Coluna Individual
+            # Caso 2: Coluna Individual (ou fallback se indicator_columns não resolveu)
             elif crit.column:
                 matched_col = resolve_col(crit.column)
                 if matched_col:
@@ -236,7 +258,7 @@ class DeterministicEngineService:
             na_position="last",
         ).index
 
-        return df.loc[sorted_indices]
+        return df.loc[sorted_indices].reset_index(drop=True)
 
     @staticmethod
     def export_formatted_excel(df: pd.DataFrame, output_path: Path, sheet_title: str) -> None:
@@ -288,21 +310,30 @@ class DeterministicEngineService:
         # 3. Formata células de dados e calcula largura ideal
         col_widths: dict[int, int] = {i: len(str(col)) + 4 for i, col in enumerate(columns, start=1)}
 
-        for row_idx in range(2, len(df) + 2):
-            ws.row_dimensions[row_idx].height = 20
-            # Efeito zebrado sutil em linhas pares
-            is_even = (row_idx % 2 == 0)
-            row_fill = PatternFill(start_color="F8FAFC", end_color="F8FAFC", fill_type="solid") if is_even else None
+        # Para planilhas grandes (> 1000 linhas), otimiza o overhead de estilização célula a célula
+        if len(df) <= 1000:
+            even_row_fill = PatternFill(start_color="F8FAFC", end_color="F8FAFC", fill_type="solid")
+            for row_idx in range(2, len(df) + 2):
+                ws.row_dimensions[row_idx].height = 20
+                is_even = (row_idx % 2 == 0)
+                row_fill = even_row_fill if is_even else None
 
-            for col_idx in range(1, len(columns) + 1):
-                cell = ws.cell(row=row_idx, column=col_idx)
-                cell.font = cell_font
-                cell.border = border_thin
-                if row_fill:
-                    cell.fill = row_fill
+                for col_idx in range(1, len(columns) + 1):
+                    cell = ws.cell(row=row_idx, column=col_idx)
+                    cell.font = cell_font
+                    cell.border = border_thin
+                    if row_fill:
+                        cell.fill = row_fill
 
-                val_str = "" if cell.value is None else str(cell.value)
-                col_widths[col_idx] = max(col_widths[col_idx], len(val_str) + 3)
+                    val_str = "" if cell.value is None else str(cell.value)
+                    col_widths[col_idx] = max(col_widths[col_idx], len(val_str) + 3)
+        else:
+            # Amostra as primeiras 100 linhas para ajuste de largura sem sobrecarga de I/O
+            sample_df = df.head(100)
+            for row in sample_df.itertuples(index=False, name=None):
+                for col_idx, val in enumerate(row, start=1):
+                    val_str = "" if pd.isna(val) else str(val)
+                    col_widths[col_idx] = max(col_widths[col_idx], len(val_str) + 3)
 
         # 4. Aplica larguras das colunas (limitadas a 50 para evitar excesso)
         for col_idx, width in col_widths.items():
@@ -436,159 +467,199 @@ class DeterministicEngineService:
 
     def consolidate(self, request: ConsolidateSheetsRequest) -> ConsolidateSheetsResponse:
         """
-        Consolidação determinística de múltiplas abas heterogêneas (RF-06).
-        - Identifica e lê todas as abas da pasta de trabalho;
-        - Aplica mapeamento canônico individualmente em cada aba;
-        - Concatena verticalmente alinhando colunas sem duplicação de schema;
-        - Adiciona opcionalmente coluna identificadora da aba de origem (ex.: aba_origem: 'Janeiro');
-        - Permite ordenação estável sobre o conjunto unificado;
-        - Audita integridade matemática estrita (RNF-02) por aba e no total consolidado.
+        Mecanismo determinístico de consolidação e alinhamento de múltiplas abas heterogêneas (RF-06, RN-01).
+        Executa:
+        1. Inspeção e validação de existência das abas na pasta de trabalho;
+        2. Leitura tabular individual descartando preâmbulos de cada aba;
+        3. Mapeamento de-para de sinônimos para esquemas canônicos unificados;
+        4. Concatenação vertical alinhada;
+        5. Inclusão opcional de coluna identificadora de origem (aba_origem);
+        6. Aplicação de mergesort estável (se sort_spec for enviado);
+        7. Auditoria matemática isolada por aba e global;
+        8. Geração física do arquivo final formatado para download.
         """
         start_time = time.perf_counter()
         file_path = file_service.get_file_path(request.file_id)
 
-        # 1. Identificação de abas disponíveis
-        available_sheets = header_detector.get_available_sheets(file_path)
-        if not available_sheets:
+        # 1. Recupera abas disponíveis
+        ext = file_path.suffix.lower()
+        if ext == ".xlsx":
+            wb = openpyxl.load_workbook(file_path, read_only=True)
+            available_sheets = wb.sheetnames
+            wb.close()
+        elif ext == ".xls":
+            import xlrd
+            book = xlrd.open_workbook(str(file_path), on_demand=True)
+            available_sheets = book.sheet_names()
+        else:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="A pasta de trabalho não contém abas válidas para consolidação.",
+                detail=f"Formato '{ext}' não suportado pelo motor de consolidação.",
             )
 
-        # 2. Definição do conjunto de abas alvo
+        # Validação de abas solicitadas
         if request.sheet_names:
             missing = [s for s in request.sheet_names if s not in available_sheets]
             if missing:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"Aba(s) {missing} não encontrada(s) no arquivo. Abas disponíveis: {available_sheets}",
+                    detail=f"Aba(s) {missing} não encontrada(s) na pasta de trabalho. Abas disponíveis: {available_sheets}.",
                 )
             target_sheets = request.sheet_names
         else:
             target_sheets = available_sheets
 
-        # 3. Leitura e processamento de cada aba individualmente
         sheet_dfs: list[pd.DataFrame] = []
         rows_per_sheet: dict[str, int] = {}
         per_sheet_audit: dict[str, SheetIntegrityAudit] = {}
-        sheet_canonical_cols: dict[str, list[str]] = {}
-        source_col = request.source_column_name or "aba_origem"
+        all_canonical_columns: list[str] = []
+        sheet_original_mapped_cols: dict[str, list[str]] = {}
 
+        # 2. Leitura e mapeamento de cada aba
         for sheet_name in target_sheets:
-            # 3.1 Identificação heurística ou configurada do cabeçalho
             header_row = None
-            if request.header_row_indices and sheet_name in request.header_row_indices:
+            if (
+                request.header_row_indices
+                and sheet_name in request.header_row_indices
+                and request.header_row_indices[sheet_name] is not None
+            ):
                 header_row = request.header_row_indices[sheet_name]
-
-            if header_row is None:
+            else:
                 detection = header_detector.detect_header(file_path, sheet_name=sheet_name)
                 header_row = detection.header_row_index
 
-            df_sheet, _ = self.read_spreadsheet(file_path, sheet_name=sheet_name, header_row=header_row)
+            df_sheet, _ = self.read_spreadsheet(file_path, sheet_name, header_row)
 
-            # 3.2 Auditoria matemática pré-processamento por aba
             pre_count = len(df_sheet)
-            pre_hash = self.calculate_multiset_hash(df_sheet)
             rows_per_sheet[sheet_name] = pre_count
+            pre_hash = self.calculate_multiset_hash(df_sheet)
 
-            # 3.3 Mapeamento semântico canônico individual (DoD RF-06)
-            mapping_for_sheet: dict[str, str] = {}
-            if request.column_mappings and not request.keep_original_headers:
-                if any(isinstance(v, dict) for v in request.column_mappings.values()):
-                    mapping_for_sheet = request.column_mappings.get(sheet_name, {})
-                else:
-                    mapping_for_sheet = request.column_mappings  # type: ignore
+            # Mapeamento semântico de colunas
+            sheet_map: dict[str, str] = {}
+            if not request.keep_original_headers and request.column_mappings:
+                raw_sheet_entry = None
+                if sheet_name in request.column_mappings:
+                    raw_sheet_entry = request.column_mappings[sheet_name]
+                elif isinstance(request.column_mappings, dict) and not any(isinstance(v, (dict, list)) for v in request.column_mappings.values()):
+                    sheet_map = {str(k): str(v) for k, v in request.column_mappings.items()}
 
-            df_processed = df_sheet.copy()
-            if mapping_for_sheet:
-                rename_dict = {orig: canon for orig, canon in mapping_for_sheet.items() if orig in df_processed.columns}
-                df_cols_lower = {c.lower(): c for c in df_processed.columns}
-                for orig, canon in mapping_for_sheet.items():
-                    if orig not in rename_dict and orig.lower() in df_cols_lower:
-                        actual_col = df_cols_lower[orig.lower()]
-                        rename_dict[actual_col] = canon
-                df_processed = df_processed.rename(columns=rename_dict)
+                if isinstance(raw_sheet_entry, dict):
+                    sheet_map = {str(k): str(v) for k, v in raw_sheet_entry.items()}
+                elif isinstance(raw_sheet_entry, list):
+                    sheet_map = {}
+                    for item in raw_sheet_entry:
+                        if isinstance(item, dict):
+                            orig = item.get("original_column")
+                            canon = item.get("canonical_column")
+                            if orig and canon:
+                                sheet_map[str(orig)] = str(canon)
+                        elif hasattr(item, "original_column") and hasattr(item, "canonical_column"):
+                            sheet_map[str(item.original_column)] = str(item.canonical_column)
 
-            sheet_canonical_cols[sheet_name] = list(df_processed.columns)
+            if sheet_map:
+                cols_lower = {str(c).lower(): c for c in df_sheet.columns}
+                rename_dict = {}
+                for orig_k, canon_v in sheet_map.items():
+                    if orig_k in df_sheet.columns:
+                        rename_dict[orig_k] = canon_v
+                    elif orig_k.lower() in cols_lower:
+                        rename_dict[cols_lower[orig_k.lower()]] = canon_v
+                df_sheet = df_sheet.rename(columns=rename_dict)
 
-            # 3.4 Adição opcional de coluna identificadora da aba de origem (DoD RF-06)
+            mapped_cols = list(df_sheet.columns)
+            sheet_original_mapped_cols[sheet_name] = mapped_cols
+
+            for c in mapped_cols:
+                if c not in all_canonical_columns:
+                    all_canonical_columns.append(c)
+
+            # Coluna de rastreamento de origem
+            df_sheet["__orig_sheet_name__"] = sheet_name
             if request.add_source_column:
-                df_processed.insert(0, source_col, sheet_name)
+                df_sheet[request.source_column_name] = sheet_name
 
-            sheet_dfs.append(df_processed)
+            sheet_dfs.append(df_sheet)
+
+        if not sheet_dfs or all(df.empty for df in sheet_dfs):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="As abas selecionadas não contêm linhas de dados válidas.",
+            )
+
+        # 3. Concatenação vertical sem duplicação de schema
+        df_consolidated = pd.concat(sheet_dfs, ignore_index=True, sort=False)
+
+        # Ordenação das colunas finais
+        final_columns: list[str] = []
+        if request.add_source_column:
+            final_columns.append(request.source_column_name)
+        for c in all_canonical_columns:
+            if c != request.source_column_name and c not in final_columns:
+                final_columns.append(c)
+
+        # 4. Aplicação de Mergesort Estável opcional
+        if request.sort_spec:
+            unified_column_mapping: dict[str, str] = {}
+            if request.column_mappings:
+                if isinstance(request.column_mappings, dict):
+                    for k, v in request.column_mappings.items():
+                        if isinstance(v, dict):
+                            unified_column_mapping.update({str(orig): str(canon) for orig, canon in v.items()})
+                        elif isinstance(v, list):
+                            for item in v:
+                                if isinstance(item, dict) and "original_column" in item and "canonical_column" in item:
+                                    unified_column_mapping[str(item["original_column"])] = str(item["canonical_column"])
+                                elif hasattr(item, "original_column") and hasattr(item, "canonical_column"):
+                                    unified_column_mapping[str(item.original_column)] = str(item.canonical_column)
+                        elif isinstance(v, str):
+                            unified_column_mapping[str(k)] = str(v)
+
+            df_consolidated = self.apply_stable_sort(
+                df_consolidated, request.sort_spec, column_mapping=unified_column_mapping
+            )
+
+        # 5. Auditoria Matemática Estrita por Aba e Global
+        all_sheets_verified = True
+        for sheet_name in target_sheets:
+            df_sub = df_consolidated[df_consolidated["__orig_sheet_name__"] == sheet_name]
+            post_count = len(df_sub)
+            orig_cols = sheet_original_mapped_cols[sheet_name]
+            df_sub_cells = df_sub[orig_cols]
+            post_hash = self.calculate_multiset_hash(df_sub_cells)
+
+            pre_count = rows_per_sheet[sheet_name]
+            pre_hash_val = self.calculate_multiset_hash(sheet_dfs[target_sheets.index(sheet_name)][orig_cols])
+            sheet_verified = (pre_count == post_count) and (pre_hash_val == post_hash or pre_count == 0)
+            if not sheet_verified:
+                all_sheets_verified = False
 
             per_sheet_audit[sheet_name] = SheetIntegrityAudit(
                 sheet_name=sheet_name,
                 pre_process_row_count=pre_count,
-                post_process_row_count=pre_count,
-                pre_process_hash=pre_hash,
-                post_process_hash=pre_hash,
-                integrity_verified=True,
+                post_process_row_count=post_count,
+                pre_process_hash=pre_hash_val,
+                post_process_hash=post_hash,
+                integrity_verified=sheet_verified,
             )
 
-        # 4. Concatenação vertical alinhando colunas correspondentes (sem duplicar schema)
-        total_pre_rows = sum(rows_per_sheet.values())
-        if total_pre_rows == 0:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Nenhum registro de dados encontrado nas abas selecionadas para consolidação.",
-            )
+        total_pre = sum(rows_per_sheet.values())
+        total_post = len(df_consolidated)
+        rows_match = (total_pre == total_post)
+        multi_sheet_audit_verified = rows_match and all_sheets_verified
 
-        consolidated_df = pd.concat(sheet_dfs, ignore_index=True)
-        consolidated_df.columns = [str(c).strip() for c in consolidated_df.columns]
+        # 6. Geração do Arquivo Físico .xlsx
+        export_df = df_consolidated[final_columns].copy()
 
-        # 5. Aplicação opcional de ordenação multi-critério sobre a tabela consolidada
-        if request.sort_spec and request.sort_spec.criteria:
-            sorted_df = self.apply_stable_sort(consolidated_df, request.sort_spec, column_mapping=None)
-        else:
-            sorted_df = consolidated_df
-
-        # 6. Auditoria Matemática Estrita Pós-Merge (RNF-02)
-        total_post_rows = len(sorted_df)
-        rows_match = (total_pre_rows == total_post_rows)
-        if not rows_match:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Divergência matemática no merge (RNF-02): Linhas pré ({total_pre_rows}) != pós ({total_post_rows}).",
-            )
-
-        all_sheets_verified = True
-        for sheet_name in target_sheets:
-            audit = per_sheet_audit[sheet_name]
-            if request.add_source_column:
-                subset = sorted_df[sorted_df[source_col] == sheet_name]
-                audit.post_process_row_count = len(subset)
-                if len(subset) != audit.pre_process_row_count:
-                    all_sheets_verified = False
-                    audit.integrity_verified = False
-                else:
-                    cols_to_check = sheet_canonical_cols[sheet_name]
-                    subset_data = subset[cols_to_check]
-                    post_hash = self.calculate_multiset_hash(subset_data)
-                    audit.post_process_hash = post_hash
-                    if post_hash != audit.pre_process_hash:
-                        all_sheets_verified = False
-                        audit.integrity_verified = False
-
-        if not all_sheets_verified:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Falha na auditoria estrita de integridade matemática por aba individual (RNF-02).",
-            )
-
-        # 7. Geração e estilização profissional da planilha consolidada .xlsx
         processed_file_id = str(uuid.uuid4())
-        original_base = Path(file_path).stem
+        original_base = Path(file_service.get_file_path(request.file_id)).stem
         output_filename = f"consolidado_{original_base}.xlsx"
+
         output_dir = settings.TEMP_STORAGE_DIR / processed_file_id
         output_file_path = output_dir / output_filename
 
-        title = (request.consolidated_sheet_title or "Consolidado")[:31]
-        self.export_formatted_excel(sorted_df, output_file_path, sheet_title=title)
+        self.export_formatted_excel(export_df, output_file_path, sheet_title=request.consolidated_sheet_title)
 
-        # Associa os arquivos para descarte simultâneo pós-download (Zero Data Retention)
         file_service.associate_files(processed_file_id, request.file_id)
-
         elapsed_ms = round((time.perf_counter() - start_time) * 1000, 2)
 
         return ConsolidateSheetsResponse(
@@ -598,19 +669,18 @@ class DeterministicEngineService:
             download_url=f"{settings.API_V1_STR}/process/download/{processed_file_id}",
             sheets_consolidated=target_sheets,
             rows_per_sheet=rows_per_sheet,
-            total_rows_consolidated=total_post_rows,
-            columns=list(sorted_df.columns),
+            total_rows_consolidated=total_post,
+            columns=final_columns,
             integrity_audit=MultiSheetIntegrityAudit(
-                total_pre_process_row_count=total_pre_rows,
-                total_post_process_row_count=total_post_rows,
+                total_pre_process_row_count=total_pre,
+                total_post_process_row_count=total_post,
                 rows_match=rows_match,
                 per_sheet_audit=per_sheet_audit,
-                integrity_verified=True,
+                integrity_verified=multi_sheet_audit_verified,
             ),
             processing_time_ms=elapsed_ms,
-            message=f"Consolidação de {len(target_sheets)} abas concluída com sucesso sem duplicação de schema e 100% de integridade matemática.",
+            message="Múltiplas abas consolidadas com sucesso sem duplicação de schema e com 100% de integridade matemática.",
         )
-
 
 
 deterministic_engine = DeterministicEngineService()

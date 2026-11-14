@@ -36,17 +36,15 @@ async def process_spreadsheet(request: ProcessSpreadsheetRequest) -> ProcessSpre
     "/consolidate",
     response_model=ConsolidateSheetsResponse,
     status_code=status.HTTP_200_OK,
-    summary="Consolidação e merge determinístico de múltiplas abas heterogêneas (RF-06)",
+    summary="Consolidação e merge determinístico de múltiplas abas (RF-06, RN-01)",
     description=(
-        "Identifica e lê todas as abas (ou subconjunto especificado) de uma pasta de trabalho .xlsx ou .xls. "
-        "Aplica o mapeamento semântico canônico individualmente em cada aba, concatena verticalmente "
-        "as linhas alinhando colunas sem duplicação de schema, insere a coluna identificadora da aba de origem "
-        "e audita a integridade matemática estrita (RNF-02)."
+        "Lê e unifica verticalmente múltiplas abas heterogêneas de uma pasta de trabalho, "
+        "aplicando mapeamento de esquemas sinônimos e ordenação estável mergesort. "
+        "Realiza auditoria matemática de integridade isolada por aba e global."
     ),
 )
 async def consolidate_sheets(request: ConsolidateSheetsRequest) -> ConsolidateSheetsResponse:
     return deterministic_engine.consolidate(request)
-
 
 
 @router.get(

@@ -1,3 +1,4 @@
+from typing import Any
 from pydantic import BaseModel, Field
 from app.schemas.semantic import SortSpec
 
@@ -104,11 +105,11 @@ class ConsolidateSheetsRequest(BaseModel):
         description="Dicionário opcional de índices de cabeçalho por aba (base 0). Se omitido, utiliza detecção heurística em cada aba.",
         json_schema_extra={"example": None},
     )
-    column_mappings: dict[str, dict[str, str]] | dict[str, str] | None = Field(
+    column_mappings: dict[str, Any] | None = Field(
         default=None,
         description=(
             "Mapeamento de-para de colunas para nomes canônicos. Pode ser especificado por aba "
-            "({'Janeiro': {'Data Mov': 'data'}, 'Fevereiro': {'Data': 'data'}}) ou como dicionário global unificado."
+            "({'Janeiro': {'Data Mov': 'data'}}, ou lista de ColumnMapping) ou como dicionário global unificado."
         ),
         json_schema_extra={"example": None},
     )

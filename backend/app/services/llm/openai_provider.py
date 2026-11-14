@@ -65,8 +65,7 @@ Você deve retornar OBRIGATORIAMENTE um objeto JSON estritamente com a seguinte 
         "original_column": "Nome_Original",
         "canonical_column": "nome_canonico_em_snake_case",
         "detected_type": "date" | "currency" | "text" | "integer" | "numeric" | "id",
-        "confidence": 0.95,
-        "semantic_reasoning": "Justificativa breve de até 10 palavras"
+        "confidence": 0.95
       }
     ]
   },
@@ -90,9 +89,11 @@ Você deve retornar OBRIGATORIAMENTE um objeto JSON estritamente com a seguinte 
 }
 
 Regras Cruciais:
-- Mantenha 'semantic_reasoning' extremamente sucinto (máximo 10 palavras por coluna) para economia de tokens.
+- NÃO inclua o campo 'semantic_reasoning' nos mapeamentos de colunas para economia de tokens e concisão estrita.
 - Se não houver instrução de ordenação, defina sort_spec como null.
 - Mantenha canonical_column sempre em snake_case limpo e padronizado em português.
+- Matrizes Indicadoras / One-Hot (agnóstico): Quando o usuário pedir ordenação por uma dimensão que está distribuída horizontalmente em múltiplas colunas de presença/opção mútua (ex.: tamanhos PP..XXG em confecção, escala de notas Péssimo..Excelente em pesquisas, faixas etárias, prioridades), utilize 'indicator_columns' com a lista ordenada dessas colunas na sequência semântica correta (ex: indicator_columns=['PP', 'P', 'M', 'G', 'GG', 'XG', 'XXG']).
+- Ordenação Categórica Não-Alfabética: Se a coluna for única mas seus valores seguirem uma ordem não-alfabética (ex.: Baixo/Médio/Alto), defina 'custom_order' com a sequência ordinal correta.
 """
 
 
@@ -103,6 +104,17 @@ class OpenAIProvider(BaseLLMProvider):
         self.api_key = api_key or settings.OPENAI_API_KEY
         self.model = model or settings.OPENAI_MODEL
         self.base_url = (base_url or settings.OPENAI_BASE_URL or "https://api.openai.com/v1").rstrip("/")
+
+    @staticmethod
+    def _clean_json_markdown(text: str) -> str:
+        s = text.strip()
+        if s.startswith("```json"):
+            s = s[7:]
+        elif s.startswith("```"):
+            s = s[3:]
+        if s.endswith("```"):
+            s = s[:-3]
+        return s.strip()
 
     async def generate_mapping_proposal(
         self,
@@ -129,11 +141,11 @@ class OpenAIProvider(BaseLLMProvider):
                 {"role": "user", "content": json.dumps(user_content, ensure_ascii=False)},
             ],
             "response_format": {"type": "json_object"},
-            "max_tokens": settings.MAX_TOKENS_PER_CALL,
+            "max_tokens": max(4096, settings.MAX_TOKENS_PER_CALL),
             "temperature": 0.0,
         }
 
-        async with httpx.AsyncClient(timeout=20.0) as client:
+        async with httpx.AsyncClient(timeout=30.0) as client:
             resp = await client.post(
                 f"{self.base_url}/chat/completions",
                 headers={
@@ -150,10 +162,25 @@ class OpenAIProvider(BaseLLMProvider):
                 )
 
             data = resp.json()
-            raw_text = data["choices"][0]["message"]["content"]
+            choice = data["choices"][0]
+            if choice.get("finish_reason") == "length":
+                raise HTTPException(
+                    status_code=status.HTTP_502_BAD_GATEWAY,
+                    detail="A resposta do modelo de IA atingiu o limite de tokens antes de concluir o mapeamento. Simplifique a instrução.",
+                )
+
+            raw_text = choice["message"]["content"]
             usage = data.get("usage", {})
 
-            parsed = json.loads(raw_text)
+            cleaned_text = self._clean_json_markdown(raw_text)
+            try:
+                parsed = json.loads(cleaned_text)
+            except json.JSONDecodeError as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_502_BAD_GATEWAY,
+                    detail=f"Resposta da IA não pôde ser interpretada como JSON: {exc}",
+                ) from exc
+
             parsed["estimated_prompt_tokens"] = usage.get("prompt_tokens", 0)
             parsed["estimated_completion_tokens"] = usage.get("completion_tokens", 0)
             parsed["total_tokens"] = usage.get("total_tokens", 0)
@@ -185,11 +212,11 @@ class OpenAIProvider(BaseLLMProvider):
                 {"role": "user", "content": json.dumps(user_content, ensure_ascii=False)},
             ],
             "response_format": {"type": "json_object"},
-            "max_tokens": settings.MAX_TOKENS_PER_CALL,
+            "max_tokens": max(4096, settings.MAX_TOKENS_PER_CALL),
             "temperature": 0.0,
         }
 
-        async with httpx.AsyncClient(timeout=25.0) as client:
+        async with httpx.AsyncClient(timeout=45.0) as client:
             resp = await client.post(
                 f"{self.base_url}/chat/completions",
                 headers={
@@ -206,10 +233,25 @@ class OpenAIProvider(BaseLLMProvider):
                 )
 
             data = resp.json()
-            raw_text = data["choices"][0]["message"]["content"]
+            choice = data["choices"][0]
+            if choice.get("finish_reason") == "length":
+                raise HTTPException(
+                    status_code=status.HTTP_502_BAD_GATEWAY,
+                    detail="A resposta do modelo de IA atingiu o limite de tokens antes de concluir o mapeamento multi-abas. Tente consolidar menos abas simultâneas ou simplificar a instrução.",
+                )
+
+            raw_text = choice["message"]["content"]
             usage = data.get("usage", {})
 
-            parsed = json.loads(raw_text)
+            cleaned_text = self._clean_json_markdown(raw_text)
+            try:
+                parsed = json.loads(cleaned_text)
+            except json.JSONDecodeError as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_502_BAD_GATEWAY,
+                    detail=f"A resposta gerada pela IA não pôde ser interpretada como JSON válido: {exc}. Saída truncada ou corrompida.",
+                ) from exc
+
             parsed["estimated_prompt_tokens"] = usage.get("prompt_tokens", 0)
             parsed["estimated_completion_tokens"] = usage.get("completion_tokens", 0)
             parsed["total_tokens"] = usage.get("total_tokens", 0)
