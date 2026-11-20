@@ -215,7 +215,8 @@ class FileService:
         Remove arquivos temporários que ultrapassaram o tempo limite de vida (RN-04: TTL 15 minutos).
         Gera evidência auditável nos logs da governança LGPD.
         """
-        ttl_seconds = (ttl_minutes or settings.TEMP_FILE_TTL_MINUTES) * 60
+        effective_ttl = settings.TEMP_FILE_TTL_MINUTES if ttl_minutes is None else ttl_minutes
+        ttl_seconds = effective_ttl * 60
         now = time.time()
         purged = 0
 
