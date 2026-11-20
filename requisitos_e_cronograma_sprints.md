@@ -66,6 +66,8 @@ Os requisitos foram levantados e consolidados com base nas dores operacionais da
 | **RF-08** | **Interface de Validação Humana (Human-in-the-Loop)** | O sistema deve exibir uma tela de pré-visualização interativa (Antes x Depois) com tabela comparativa e o score de confiança do mapeamento sugerido pela IA, permitindo ao usuário revisar e confirmar as alterações antes da exportação final. | **Should Have** | H7 |
 | **RF-09** | **Higienização e Padronização de Tipos de Dados** | O sistema deve reconhecer e padronizar formatos brasileiros comuns: conversão de strings de datas para formato ISO/brasileiro (`DD/MM/AAAA`) e strings monetárias (`R$ 1.500,50`) para números decimais tratáveis, eliminando espaços vazios e caracteres corrompidos. | **Should Have** | H6 / H7 |
 | **RF-10** | **Prototipação de Suplemento Nativo (Excel Add-in)** | O sistema deve fornecer um protótipo de suplemento lateral integrado ao Microsoft Excel via *Office JavaScript API*, permitindo ao usuário acionar a organização diretamente na planilha aberta sem troca de telas. | **Could Have** | H5 |
+| **RF-11** | **Ingestão de Relatórios em PDF com Extração Tabular (Docling)** | O sistema deve aceitar relatórios em PDF (nativos ou escaneados) de até 30 MB, segmentar páginas e extrair estruturas tabulares de forma precisa utilizando os modelos de layout e *TableFormer* do Docling, exportando os dados extraídos diretamente para o pipeline determinístico e semântico. | **Should Have** | H3 / H6 |
+| **RF-12** | **Ingestão de Documentos Heterogêneos Não Estruturados (Docling)** | O sistema deve suportar a extração de dados tabulares embutidos em arquivos não estruturados (.docx, .pptx e imagens .png/.jpg de tabelas/prints), normalizando-os em DataFrames intermediários para organização semântica e exportação em `.xlsx`. | **Could Have** | H3 / H4 |
 
 ---
 
@@ -79,6 +81,7 @@ Os requisitos foram levantados e consolidados com base nas dores operacionais da
 | **RNF-04** | **Eficiência de Custos** | O consumo de tokens por chamada de IA deve ser minimizado através de prompts enxutos focados estritamente em metadados, mantendo o custo de inferência abaixo de R$ 0,01 por arquivo processado. | Média $< 800$ tokens por execução; margem operacional bruta $> 90\%$. |
 | **RNF-05** | **Usabilidade (UX)** | A interface deve apresentar curva de aprendizado zero para profissionais de negócios não técnicos (*Citizen Data Scientists*), com mensagens de status claras e feedback visual em tempo real. | Taxa de conclusão de tarefas $\ge 90\%$ sem necessidade de manual de instruções. |
 | **RNF-06** | **Compatibilidade e Portabilidade** | A aplicação web deve operar de maneira responsiva e estável nos navegadores modernos de mercado: Google Chrome, Microsoft Edge, Mozilla Firefox e Safari. | Execução sem quebra de layout ou funcionalidade nos 4 navegadores. |
+| **RNF-07** | **Isolamento e Resiliência do Motor Docling** | As rotinas de conversão multimodal pesadas (Docling/PyTorch/OCR) devem rodar isoladas do núcleo síncrono da API leve (FastAPI), garantindo que a ingestão de PDFs não degrade o SLA das planilhas nativas (`.xlsx`) e tratando timeouts com fallback gracioso. | Tempo de extração tabular $\le 30$s para PDFs de até 10 páginas; zero impacto de memória no worker web principal. |
 
 ---
 
@@ -310,6 +313,68 @@ Abaixo estão detalhados os cartões de trabalho prontos para exportação e aco
 
 ---
 
+### 4.4. SPRINT 4: Expansão Multimodal — Ingestão de PDFs e Documentos Heterogêneos com Docling (Backlog de Evolução)
+* **Meta da Sprint:** Integrar o motor multimodal do Docling para viabilizar a ingestão de relatórios em PDF com extração de tabelas via IA visual (*TableFormer*) e o processamento de documentos heterogêneos não estruturados (`.docx`, `.pptx` e imagens), conectando as tabelas extraídas ao pipeline semântico e determinístico do Organizer App.
+* **Hipóteses Validadas:** Expansão de H3 (Ingestão Tolerante e Multimodal) e H6 (Determinismo após Extração).
+
+#### Card 4.1: Setup do Módulo Adaptador Docling e Serviço de Conversão Assíncrona
+* **Chave / ID:** `TSK-S4-01`
+* **Tipo:** Task / Enabler
+* **Requisito:** `RF-11`, `RF-12`, `RNF-07`
+* **Story Points / Estimativa:** 5 pts (Alta)
+* **Prioridade:** Alta
+* **Descrição para o Jira/Trello:**
+  > Configurar o runtime isolado para o toolkit Docling (via worker assíncrono ou container desacoplado), fornecendo abstração de serviço para conversão de documentos sem comprometer o consumo de recursos nem degradar o SLA do núcleo de planilhas leves (`.xlsx`).
+* **Critérios de Aceite (DoD):**
+  - [ ] Instalação e isolamento das dependências pesadas do Docling (modelos de visão/layout) fora do ciclo síncrono da API principal.
+  - [ ] Implementação da interface abstrata `DoclingIngester` com controle de concorrência, limites de memória e timeout defensivo.
+  - [ ] Sanitização e validação de formatos multipart (`.pdf`, `.docx`, `.pptx`, `.png`, `.jpg`) com limite de tamanho até 30 MB.
+  - [ ] Teste unitário e de integração cobrindo inicialização do motor e fallback gracioso em caso de falha de conversão.
+
+#### Card 4.2: Pipeline de Ingestão e Extração de Tabelas em Relatórios PDF (TableFormer)
+* **Chave / ID:** `TSK-S4-02`
+* **Tipo:** User Story
+* **Requisito:** `RF-11`, `RNF-01`, `RN-01`
+* **Story Points / Estimativa:** 5 pts (Alta)
+* **Prioridade:** Alta
+* **Descrição para o Jira/Trello:**
+  > Como analista operacional/financeiro, quero fazer upload de relatórios em PDF (nativos ou escaneados) contendo tabelas, para que o sistema extraia automaticamente as grades tabulares e as converta em tabelas estruturadas prontas para ordenação e organização.
+* **Critérios de Aceite (DoD):**
+  - [ ] Reconhecimento e extração de tabelas multi-páginas em arquivos PDF utilizando a arquitetura *TableFormer* do Docling.
+  - [ ] Conversão automática da estrutura tabular para DataFrames Pandas intermediários preservando alinhamento e dados numéricos.
+  - [ ] Preservação estrita da conformidade LGPD (RN-01): envio exclusivo dos nomes de colunas das tabelas extraídas ao Orquestrador Semântico.
+  - [ ] Bateria de testes com PDFs corporativos reais (faturas, DREs e relatórios) alcançando acurácia estrutural $\ge 90\%$.
+
+#### Card 4.3: Ingestão de Documentos Heterogêneos Não Estruturados (DOCX, PPTX e Imagens)
+* **Chave / ID:** `TSK-S4-03`
+* **Tipo:** User Story
+* **Requisito:** `RF-12`, `RNF-02`
+* **Story Points / Estimativa:** 5 pts (Alta)
+* **Prioridade:** Média
+* **Descrição para o Jira/Trello:**
+  > Como analista de compras/suprimentos, quero carregar documentos Word (`.docx`), apresentações (`.pptx`) ou imagens de tabelas/capturas de tela (`.png`, `.jpg`), para extrair dados tabulares embutidos sem redigitação manual.
+* **Critérios de Aceite (DoD):**
+  - [ ] Extração de tabelas incorporadas em arquivos `.docx` e slides de `.pptx` através do modelo documental unificado do Docling.
+  - [ ] Pipeline de OCR óptico integrado para imagens e prints de tabelas (`.png`, `.jpg`) com segmentação de linhas e células.
+  - [ ] Normalização dos registros extraídos para a camada de higienização de tipos e ordenação determinística do backend.
+  - [ ] Verificação de integridade garantindo 100% de precisão nos valores extraídos da grade identificada.
+
+#### Card 4.4: Interface Human-in-the-Loop para Seleção e Validação de Tabelas Extraídas
+* **Chave / ID:** `TSK-S4-04`
+* **Tipo:** User Story
+* **Requisito:** `RF-08`, `RF-11`, `RNF-05`
+* **Story Points / Estimativa:** 5 pts (Alta)
+* **Prioridade:** Alta
+* **Descrição para o Jira/Trello:**
+  > Como usuário da aplicação web, quero visualizar na interface as tabelas detectadas no PDF ou documento com miniatura/número da página, para poder selecionar qual tabela organizar, revisar o mapeamento semântico e baixar a planilha limpa em `.xlsx`.
+* **Critérios de Aceite (DoD):**
+  - [ ] Atualização do componente de drag and drop no React para aceitar arquivos PDF e documentos não estruturados.
+  - [ ] Exibição de cards seletores para documentos com múltiplas tabelas (ex.: "Tabela 1 - Página 2 (14 linhas, 5 colunas)").
+  - [ ] Integração fluida com a tela de pré-visualização interativa (Antes x Depois) e com o motor de exportação `.xlsx`.
+  - [ ] Indicador visual e textual específico para a fase de processamento multimodal do Docling.
+
+---
+
 ## 5. Tabela Consolidada para Importação Direta em Ferramentas Ágeis (Jira / Trello / GitHub Projects / CSV)
 
 A Tabela 5.1 sintetiza o backlog completo com todos os campos necessários para rastreamento visual e importação em ferramentas de gestão ágil. O quadro interativo oficial pode ser acessado em [Backlog · @NewtonJoaquim's Organize Project](https://github.com/users/NewtonJoaquim/projects/1/views/1):
@@ -331,6 +396,10 @@ A Tabela 5.1 sintetiza o backlog completo com todos os campos necessários para 
 | **Sprint 3** | `TSK-S3-02` | Bateria de Testes Experimentais com Amostras das Personas | Validação | Alta | 5 | `RNF-01`, `RNF-02`, `RNF-05` |
 | **Sprint 3** | `TSK-S3-03` | Auditoria Final das Métricas SMART e Teste de Carga | QA | Alta | 3 | `RNF-01`, `RNF-03`, `RNF-04` |
 | **Sprint 3** | `TSK-S3-04` | Consolidação do Relatório do Projeto e Apresentação Pitch | Documentação | Alta | 3 | `Entrega Acadêmica XPE` |
+| **Sprint 4** | `TSK-S4-01` | Setup do Adaptador Docling e Serviço de Conversão Assíncrona | Task / Enabler | Alta | 5 | `RF-11`, `RF-12`, `RNF-07` |
+| **Sprint 4** | `TSK-S4-02` | Pipeline de Ingestão e Extração de Tabelas em PDFs (Docling) | User Story | Alta | 5 | `RF-11`, `RNF-01`, `RN-01` |
+| **Sprint 4** | `TSK-S4-03` | Ingestão de Documentos Heterogêneos (DOCX, PPTX e Imagens) | User Story | Média | 5 | `RF-12`, `RNF-02` |
+| **Sprint 4** | `TSK-S4-04` | Interface de Seleção e Mapeamento de Tabelas de Documentos | User Story | Alta | 5 | `RF-08`, `RF-11`, `RNF-05` |
 
 ---
 
