@@ -1,0 +1,21 @@
+{
+  "name": "organizer-excel-addin",
+  "version": "1.0.0",
+  "description": "Suplemento Oficial Microsoft Excel para o Organizer App (RF-10)",
+  "main": "src/taskpane.js",
+  "scripts": {
+    "start": "python serve.py",
+    "serve": "npx http-server . -p 3000 --cors",
+    "validate": "npx office-addin-manifest validate manifest.xml",
+    "sideload": "npx office-addin-dev-settings sideload manifest.xml"
+  },
+  "keywords": [
+    "office-addin",
+    "excel",
+    "organizer",
+    "ai",
+    "pandas"
+  ],
+  "author": "Newton Joaquim",
+  "license": "MIT"
+}

@@ -8,6 +8,8 @@ from app.core.config import settings
 from app.schemas.process import (
     ConsolidateSheetsRequest,
     ConsolidateSheetsResponse,
+    DirectProcessRequest,
+    DirectProcessResponse,
     ProcessSpreadsheetRequest,
     ProcessSpreadsheetResponse,
 )
@@ -15,6 +17,20 @@ from app.services.file_service import file_service
 from app.services.processor import deterministic_engine
 
 router = APIRouter(prefix="/process", tags=["Processamento Determinístico e Ordenação Local"])
+
+
+@router.post(
+    "/direct",
+    response_model=DirectProcessResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Processamento determinístico direto para Excel Add-in (RF-10, RNF-02)",
+    description=(
+        "Recebe dados tabulares lidos diretamente via Office JavaScript API (Office.js), "
+        "aplica higienização de tipos brasileiros, ordenação determinística e auditoria matemática de integridade."
+    ),
+)
+async def process_direct(request: DirectProcessRequest) -> DirectProcessResponse:
+    return deterministic_engine.process_direct(request)
 
 
 @router.post(

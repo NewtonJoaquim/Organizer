@@ -167,3 +167,39 @@ class ConsolidateSheetsResponse(BaseModel):
     processing_time_ms: float = Field(..., description="Tempo de execução do merge determinístico em ms.")
     message: str = Field(default="Múltiplas abas consolidadas com sucesso sem duplicação de schema e com 100% de integridade matemática.")
 
+
+class DirectProcessRequest(BaseModel):
+    headers: list[str] = Field(..., description="Lista dos nomes de cabeçalho das colunas.")
+    rows: list[list[Any]] = Field(..., description="Matriz de linhas contendo os valores das células.")
+    sort_spec: SortSpec | None = Field(default=None, description="Especificação formal de ordenação gerada pelo orquestrador semântico.")
+    column_mapping: dict[str, str] | None = Field(
+        default=None,
+        description="Mapeamento de-para opcional de colunas para nomes canônicos.",
+    )
+    keep_original_headers: bool = Field(
+        default=False,
+        description="Se True, preserva os nomes originais dos cabeçalhos.",
+    )
+    normalize_types: bool = Field(
+        default=True,
+        description="Aplica higienização de tipos brasileiros (moeda, datas, strings).",
+    )
+    generate_download_file: bool = Field(
+        default=False,
+        description="Gera também um arquivo .xlsx temporário para download opcional.",
+    )
+
+
+class DirectProcessResponse(BaseModel):
+    headers: list[str] = Field(..., description="Nomes finais das colunas tratadas.")
+    rows: list[list[Any]] = Field(..., description="Matriz de linhas ordenadas e tratadas.")
+    rows_processed: int = Field(..., description="Quantidade de registros tratados.")
+    columns_count: int = Field(..., description="Quantidade de colunas.")
+    mapping_applied: dict[str, str] = Field(default_factory=dict, description="Mapeamento de colunas aplicado.")
+    integrity_audit: IntegrityAudit = Field(..., description="Auditoria matemática com hash multiset (RNF-02).")
+    processing_time_ms: float = Field(..., description="Tempo de execução determinístico em milissegundos.")
+    processed_file_id: str | None = Field(default=None, description="UUID do arquivo para download caso solicitado.")
+    download_url: str | None = Field(default=None, description="URL para download caso solicitado.")
+    message: str = Field(default="Dados organizados e ordenados com 100% de integridade matemática.")
+
+

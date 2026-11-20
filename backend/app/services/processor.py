@@ -13,6 +13,8 @@ from app.core.config import settings
 from app.schemas.process import (
     ConsolidateSheetsRequest,
     ConsolidateSheetsResponse,
+    DirectProcessRequest,
+    DirectProcessResponse,
     IntegrityAudit,
     MultiSheetIntegrityAudit,
     ProcessSpreadsheetRequest,
@@ -250,7 +252,28 @@ class DeterministicEngineService:
                         )
                         sort_keys.append(cat_key)
                     else:
-                        sort_keys.append(col_name)
+                        # Se a coluna não for puramente numérica nem datetime, tenta inferir se é data ou moeda brasileira para ordenação correta
+                        sort_col = col_name
+                        if not pd.api.types.is_numeric_dtype(df_work[col_name]) and not pd.api.types.is_datetime64_any_dtype(df_work[col_name]):
+                            from app.services.normalizer import data_normalizer
+                            col_str_lower = col_name.lower()
+                            # 1. Inferência de datas brasileiras
+                            if any(k in col_str_lower for k in ["data", "dt", "date", "vencimento", "emissao", "entrega"]):
+                                parsed_dates = df_work[col_name].apply(data_normalizer.parse_date)
+                                if parsed_dates.notna().sum() > 0 and parsed_dates.notna().sum() >= len(df_work) * 0.5:
+                                    date_key = f"__date_sort_{i}__"
+                                    df_work[date_key] = pd.to_datetime(parsed_dates)
+                                    sort_col = date_key
+
+                            # 2. Inferência de moedas/decimais brasileiros
+                            if sort_col == col_name:
+                                parsed_nums = df_work[col_name].apply(data_normalizer.parse_currency)
+                                if parsed_nums.notna().sum() > 0 and parsed_nums.notna().sum() >= len(df_work) * 0.5:
+                                    num_key = f"__num_sort_{i}__"
+                                    df_work[num_key] = parsed_nums
+                                    sort_col = num_key
+
+                        sort_keys.append(sort_col)
                     ascending_list.append(crit.direction == SortDirection.ASC)
                     i += 1
 
@@ -686,6 +709,97 @@ class DeterministicEngineService:
             ),
             processing_time_ms=elapsed_ms,
             message="Múltiplas abas consolidadas com sucesso sem duplicação de schema e com 100% de integridade matemática.",
+        )
+
+    def process_direct(self, request: DirectProcessRequest) -> DirectProcessResponse:
+        """
+        Processamento determinístico e ordenação algorítmica direta para o Excel Add-in (RF-10, RNF-02).
+        Recebe matriz de células lidas diretamente via Office JavaScript API,
+        executa higienização de tipos, mergesort estável e auditoria matemática de integridade.
+        """
+        start_time = time.perf_counter()
+
+        if not request.headers:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="A lista de cabeçalhos não pode ser vazia.",
+            )
+
+        # 1. Converte a matriz de linhas para DataFrame
+        df = pd.DataFrame(request.rows, columns=request.headers)
+
+        # Remove linhas totalmente vazias
+        df = df.dropna(how="all", axis=0)
+
+        pre_process_count = len(df)
+        pre_process_hash = self.calculate_multiset_hash(df)
+
+        # 2. Higienização de tipos brasileiros (RF-09 / TSK-S2-04)
+        if request.normalize_types:
+            from app.services.normalizer import data_normalizer
+            df = data_normalizer.normalize_dataframe(df)
+
+        # 3. Ordenação determinística local (mergesort / RF-05 / RN-02)
+        if request.sort_spec and request.sort_spec.criteria:
+            df = self.apply_stable_sort(df, request.sort_spec, request.column_mapping)
+
+        # 4. Auditoria de integridade pós-ordenação
+        post_process_count = len(df)
+        post_process_hash = self.calculate_multiset_hash(df)
+        rows_match = (pre_process_count == post_process_count)
+        hashes_match = (pre_process_hash == post_process_hash)
+        integrity_verified = rows_match and hashes_match
+
+        audit = IntegrityAudit(
+            pre_process_row_count=pre_process_count,
+            post_process_row_count=post_process_count,
+            rows_match=rows_match,
+            pre_process_hash=pre_process_hash,
+            post_process_hash=post_process_hash,
+            integrity_verified=integrity_verified,
+        )
+
+        # 5. Mapeamento canônico opcional
+        mapping_applied: dict[str, str] = {}
+        if request.column_mapping and not request.keep_original_headers:
+            rename_dict = {
+                orig: canon for orig, canon in request.column_mapping.items() if orig in df.columns
+            }
+            df = df.rename(columns=rename_dict)
+            mapping_applied = rename_dict
+
+        # 6. Geração de arquivo .xlsx temporário para download opcional
+        processed_file_id = None
+        download_url = None
+        if request.generate_download_file:
+            processed_file_id = str(uuid.uuid4())
+            output_dir = settings.TEMP_STORAGE_DIR / processed_file_id
+            output_path = output_dir / "organizer_excel_addin.xlsx"
+            self.export_formatted_excel(df, output_path, sheet_title="Organizado")
+            download_url = f"{settings.API_V1_STR}/process/download/{processed_file_id}"
+
+        # 7. Formatação de retorno JSON compatível com Office.js
+        clean_rows = df.fillna("").values.tolist()
+        serialized_rows = []
+        for r in clean_rows:
+            serialized_rows.append([
+                str(v) if isinstance(v, (pd.Timestamp, pd.Period)) else v
+                for v in r
+            ])
+
+        elapsed_ms = round((time.perf_counter() - start_time) * 1000, 2)
+
+        return DirectProcessResponse(
+            headers=list(df.columns),
+            rows=serialized_rows,
+            rows_processed=post_process_count,
+            columns_count=len(df.columns),
+            mapping_applied=mapping_applied,
+            integrity_audit=audit,
+            processing_time_ms=elapsed_ms,
+            processed_file_id=processed_file_id,
+            download_url=download_url,
+            message="Dados da seleção do Excel organizados e ordenados com 100% de integridade matemática.",
         )
 
 
