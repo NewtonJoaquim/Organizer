@@ -51,15 +51,15 @@ class ColumnMapping(BaseModel):
     original_column: str = Field(..., description="Nome bruto da coluna extraído da planilha.")
     canonical_column: str = Field(..., description="Nome canônico padronizado inferido pela IA (snake_case).")
     detected_type: str = Field(
-        ...,
+        default="text",
         description="Tipo de dado semântico inferido (ex.: date, currency, text, integer, percentage, id).",
     )
     confidence: float = Field(
-        ...,
+        default=0.9,
         description="Score de confiança do mapeamento semântico (0.0 a 1.0).",
     )
     semantic_reasoning: str = Field(
-        ...,
+        default="",
         description="Justificativa sucinta para a padronização do termo e sinonímia detectada.",
     )
 
