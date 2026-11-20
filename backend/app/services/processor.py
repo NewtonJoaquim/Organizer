@@ -96,6 +96,12 @@ class DeterministicEngineService:
             # Garante que os nomes de colunas sejam strings limpas
             df.columns = [str(col).strip() if not pd.isna(col) else f"coluna_{i+1}" for i, col in enumerate(df.columns)]
 
+            # Higienização de strings contra caracteres invisíveis e espaços duplos (TASK-09 / RF-09)
+            from app.services.normalizer import data_normalizer
+            for col in df.columns:
+                if pd.api.types.is_string_dtype(df[col]) or df[col].dtype in ["object", "str", "string"]:
+                    df[col] = df[col].apply(data_normalizer.clean_text)
+
             return df, target_sheet
 
         except Exception as e:

@@ -148,7 +148,7 @@ def make_code_box(doc, code_str, title=None):
     r_code.font.color.rgb = RGBColor(0x0F, 0x17, 0x2A)
     return tbl
 
-def make_figure_block(doc, img_path, title, caption_source="Fonte: Elaborado pelo autor (2026)."):
+def make_figure_block(doc, img_path, title, caption_source="Fonte: Elaborado pelo autor (2026).", width=Cm(14.0)):
     # Title paragraph
     p_title = doc.add_paragraph()
     p_title.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -168,7 +168,7 @@ def make_figure_block(doc, img_path, title, caption_source="Fonte: Elaborado pel
     p_img.paragraph_format.space_after = Pt(2)
     p_img.paragraph_format.keep_with_next = True
     r_img = p_img.add_run()
-    r_img.add_picture(img_path, width=Cm(15.5))
+    r_img.add_picture(img_path, width=width)
 
     # Caption / Source paragraph
     p_cap = doc.add_paragraph()
