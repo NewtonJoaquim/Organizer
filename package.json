@@ -1,0 +1,23 @@
+{
+  "name": "organizer-app",
+  "version": "1.0.0",
+  "description": "Organizer App — Organizador Inteligente de Dados e Planilhas com IA Semântica e Determinismo Pandas",
+  "scripts": {
+    "start": "python start.py",
+    "dev": "python start.py",
+    "docker": "docker compose up --build",
+    "docker:down": "docker compose down",
+    "test": "cd backend && uv run pytest",
+    "build:frontend": "npm --prefix frontend run build"
+  },
+  "keywords": [
+    "organizer",
+    "excel",
+    "pandas",
+    "fastapi",
+    "react",
+    "office-addin"
+  ],
+  "author": "Newton Joaquim",
+  "license": "MIT"
+}

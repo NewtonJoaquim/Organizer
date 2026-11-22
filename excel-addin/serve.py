@@ -5,7 +5,8 @@ import http.server
 import socketserver
 from pathlib import Path
 
-PORT = 3000
+HOST = os.environ.get("HOST", "0.0.0.0")
+PORT = int(os.environ.get("PORT", 3000))
 DIRECTORY = Path(__file__).resolve().parent
 
 class CORSRequestHandler(http.server.SimpleHTTPRequestHandler):
@@ -72,7 +73,8 @@ def main():
     if not (cert_file.exists() and key_file.exists()):
         generate_self_signed_cert(cert_file, key_file)
 
-    server_address = ("127.0.0.1", PORT)
+    server_address = (HOST, PORT)
+    socketserver.TCPServer.allow_reuse_address = True
     httpd = socketserver.TCPServer(server_address, CORSRequestHandler)
 
     if cert_file.exists() and key_file.exists():
