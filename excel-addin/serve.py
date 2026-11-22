@@ -13,6 +13,20 @@ class CORSRequestHandler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(DIRECTORY), **kwargs)
 
+    def do_GET(self):
+        # Redirecionamento amigável para a raiz e favicon
+        if self.path in ("/", ""):
+            self.send_response(302)
+            self.send_header("Location", "/src/taskpane.html")
+            self.end_headers()
+            return
+        if self.path == "/favicon.ico":
+            self.send_response(302)
+            self.send_header("Location", "/assets/icon-32.png")
+            self.end_headers()
+            return
+        super().do_GET()
+
     def end_headers(self):
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
